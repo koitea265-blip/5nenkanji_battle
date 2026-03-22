@@ -28,7 +28,6 @@
     @keyframes pulse-glow-p1 { 0%, 100% { background-color: #0c4a6e; box-shadow: inset 0 0 0 2px #0ea5e9; } 50% { background-color: #075985; box-shadow: inset 0 0 0 4px #38bdf8, inset 0 0 20px #38bdf8; } }
     @keyframes pulse-glow-p2 { 0%, 100% { background-color: #831843; box-shadow: inset 0 0 0 2px #db2777; } 50% { background-color: #9d174d; box-shadow: inset 0 0 0 4px #f472b6, inset 0 0 20px #f472b6; } }
     .active-player-card { background: white !important; box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.3) !important; transform: scale(1.08) translateY(-10px); z-index: 30; border: 4px solid white !important; }
-    select { appearance: none; -webkit-appearance: none; }
     * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .can-move-p1 { animation: pulse-glow-p1 1.5s infinite ease-in-out !important; cursor: pointer; }
     .can-move-p2 { animation: pulse-glow-p2 1.5s infinite ease-in-out !important; cursor: pointer; }
@@ -41,6 +40,13 @@
     @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
     .toast-enter { animation: slideInDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
     .toast-exit { animation: fadeOut 0.3s ease-out forwards; }
+
+    /* Setting Button Styles */
+    .btn-setting { transition: all 0.2s; border-bottom-width: 4px; }
+    .btn-setting.active { background-color: #ea580c; color: white; border-color: #c2410c; transform: translateY(2px); border-bottom-width: 2px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+    .btn-setting.inactive { background-color: white; color: #9a3412; border-color: #fed7aa; }
+    .btn-setting.inactive:hover:not(:disabled) { background-color: #fff7ed; }
+    .btn-setting:disabled { opacity: 0.5; cursor: not-allowed; background-color: #e5e7eb; color: #9ca3af; border-color: #d1d5db; }
   </style>
 </head>
 <body class="bg-slate-200 transition-colors duration-500 h-screen w-screen flex flex-col md:flex-row overflow-hidden text-gray-800 font-maru relative">
@@ -48,66 +54,77 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="fixed top-4 left-1/2 z-[200] flex flex-col gap-2 pointer-events-none w-11/12 max-w-md"></div>
 
-  <aside id="control-panel" class="w-full md:w-80 h-auto md:h-full p-4 flex flex-col gap-2 bg-gradient-to-b from-amber-50 to-orange-100 shadow-[10px_0_20px_rgba(0,0,0,0.1)] z-20 border-r-4 border-orange-300 relative text-gray-800 transition-opacity duration-300">
+  <aside id="control-panel" class="w-full md:w-80 h-auto md:h-full p-3 md:p-4 flex flex-col gap-2 bg-gradient-to-b from-amber-50 to-orange-100 shadow-[10px_0_20px_rgba(0,0,0,0.1)] z-20 border-r-4 border-orange-300 relative text-gray-800 transition-opacity duration-300 overflow-y-auto">
     <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(#fb923c 2px, transparent 2px); background-size: 20px 20px;"></div>
     
-    <div class="relative z-10">
+    <div class="relative z-10 flex-shrink-0">
       <h1 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)] leading-tight text-center md:text-left flex items-center justify-center md:justify-start gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M11.646 3.097c.216-.453.864-.453 1.08 0l1.411 2.96 3.197.464c.485.07.68.67.329 1.01l-2.314 2.253.546 3.185c.083.483-.424.85-.857.625L12 11.96l-2.86 1.505c-.433.227-.94-.142-.857-.625l.546-3.185-2.314-2.253c-.351-.34-.156-.94.33-1.01l3.196-.464 1.412-2.96z"/></svg>
-        <span class="flex flex-col whitespace-nowrap text-left"><span>５年漢字バトル！</span><span>めくってオセロ</span></span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 md:h-10 md:w-10 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M11.646 3.097c.216-.453.864-.453 1.08 0l1.411 2.96 3.197.464c.485.07.68.67.329 1.01l-2.314 2.253.546 3.185c.083.483-.424.85-.857.625L12 11.96l-2.86 1.505c-.433.227-.94-.142-.857-.625l.546-3.185-2.314-2.253c-.351-.34-.156-.94.33-1.01l3.196-.464 1.412-2.96z"/></svg>
+        <span class="flex flex-col whitespace-nowrap text-left text-xl md:text-3xl"><span>５年漢字バトル！</span><span>めくってオセロ</span></span>
       </h1>
-      <button id="btn-help" class="bg-white text-orange-600 border-2 border-orange-400 font-black py-1 px-6 rounded-full text-sm shadow-[0_4px_0_#fb923c] active:translate-y-1 transition-all mx-auto md:ml-0 mt-1 block">あそびかた</button>
+      <button id="btn-help" class="bg-white text-orange-600 border-2 border-orange-400 font-black py-1 px-4 md:px-6 rounded-full text-xs md:text-sm shadow-[0_4px_0_#fb923c] active:translate-y-1 transition-all mx-auto md:ml-0 mt-1 block">あそびかた</button>
     </div>
 
-    <div id="settings-panel" class="flex flex-col gap-2 mt-1 bg-gradient-to-br from-yellow-400 to-orange-500 p-3 md:p-4 rounded-[1.5rem] border-4 border-white shadow-[0_6px_0_#ea580c] relative z-10 overflow-hidden transition-all duration-300">
-      <div class="absolute top-[-10px] right-[-10px] w-16 h-16 bg-white opacity-20 rounded-full blur-xl pointer-events-none"></div>
-      <div class="text-base font-black text-white drop-shadow-md tracking-wider flex justify-between items-center">
-        <span>もんだいの設定</span>
-        <svg id="lock-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white opacity-0 transition-opacity duration-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
-      </div>
-      <div class="flex flex-col gap-2 relative z-10">
-        <select id="select-length" class="w-full bg-white text-orange-900 border-b-4 border-orange-200 py-2.5 px-4 rounded-xl text-lg font-black focus:outline-none cursor-pointer disabled:opacity-70 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed transition-all leading-tight">
-          <option value="2">熟語 2文字</option><option value="1">漢字 1文字</option>
-        </select>
-        <select id="select-grade" class="w-full bg-white text-orange-900 border-b-4 border-orange-200 py-2.5 px-4 rounded-xl text-lg font-black focus:outline-none cursor-pointer disabled:opacity-70 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed transition-all leading-tight">
-          <option value="only5" selected>5年生の漢字</option>
-          <option value="only4">4年生の漢字</option>
-          <option value="upTo3">1〜3年生の漢字</option>
-          <option value="custom" id="opt-custom" disabled>先生のオリジナル問題</option>
-        </select>
-      </div>
-      <button id="btn-import-csv" class="relative z-10 w-full mt-1 bg-white text-orange-600 border-2 border-orange-300 font-black py-1.5 rounded-lg text-xs shadow-sm hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-        問題データを読み込む
-      </button>
-      <div class="relative z-10 text-right"><button id="btn-csv-help" class="text-[10px] text-white font-bold underline hover:text-orange-200 transition-colors">※オリジナル問題の作り方</button></div>
-      <input type="file" id="file-upload" accept=".csv" class="hidden">
-    </div>
-
-    <div class="flex flex-col gap-2 mt-1 bg-white/60 p-3 rounded-3xl border-2 border-white shadow-inner relative z-10">
-      <div id="turn-indicator" class="text-xl font-black py-2 rounded-full text-center shadow-lg border-4 transition-all duration-300 animate-bounce-subtle">準備中</div>
-      <div class="flex justify-around items-center h-24 md:h-28 relative">
+    <!-- プレイヤーステータスを上に配置 -->
+    <div class="flex flex-col gap-2 mt-1 bg-white/60 p-2 md:p-3 rounded-3xl border-2 border-white shadow-inner relative z-10 flex-shrink-0">
+      <div id="turn-indicator" class="text-lg md:text-xl font-black py-1.5 md:py-2 rounded-full text-center shadow-lg border-4 transition-all duration-300 animate-bounce-subtle">準備中</div>
+      <div class="flex justify-around items-center h-20 md:h-28 relative">
         <div id="p1-box" class="flex flex-col items-center p-1 rounded-2xl border-4 border-transparent transition-all duration-500 w-[45%]">
-          <div class="w-10 h-10 md:w-12 md:h-12 mb-1 rounded-full bg-sky-300 border-2 border-sky-400 shadow-md flex items-center justify-center text-sky-900 font-black text-lg">水</div>
-          <span id="score-1" class="text-3xl md:text-4xl font-black text-gray-800 leading-none">0</span>
+          <div class="w-8 h-8 md:w-12 md:h-12 mb-0.5 md:mb-1 rounded-full bg-sky-300 border-2 border-sky-400 shadow-md flex items-center justify-center text-sky-900 font-black text-sm md:text-lg">水</div>
+          <span id="score-1" class="text-2xl md:text-4xl font-black text-gray-800 leading-none">0</span>
         </div>
-        <div class="text-lg font-black text-orange-300 uppercase tracking-tighter">VS</div>
+        <div class="text-sm md:text-lg font-black text-orange-300 uppercase tracking-tighter">VS</div>
         <div id="p2-box" class="flex flex-col items-center p-1 rounded-2xl border-4 border-transparent transition-all duration-500 w-[45%]">
-          <div class="w-10 h-10 md:w-12 md:h-12 mb-1 rounded-full bg-pink-400 border-2 border-pink-500 shadow-md flex items-center justify-center text-pink-900 font-black text-lg">ピ</div>
-          <span id="score-2" class="text-3xl md:text-4xl font-black text-gray-800 leading-none">0</span>
+          <div class="w-8 h-8 md:w-12 md:h-12 mb-0.5 md:mb-1 rounded-full bg-pink-400 border-2 border-pink-500 shadow-md flex items-center justify-center text-pink-900 font-black text-sm md:text-lg">ピ</div>
+          <span id="score-2" class="text-2xl md:text-4xl font-black text-gray-800 leading-none">0</span>
         </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-1 gap-2 mt-auto text-white relative z-10">
+    <!-- コントロールボタンを上に配置 -->
+    <div class="grid grid-cols-2 md:grid-cols-1 gap-2 mt-1 text-white relative z-10 flex-shrink-0">
       <div class="grid grid-cols-2 gap-2 col-span-2 md:col-span-1">
-        <button id="btn-undo" disabled class="bg-gradient-to-b from-blue-400 to-blue-500 border-b-4 border-blue-600 py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed">1手戻す</button>
-        <button id="btn-pass" class="bg-gradient-to-b from-gray-400 to-gray-500 border-b-4 border-gray-600 py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-sm">パスする</button>
+        <button id="btn-undo" disabled class="bg-gradient-to-b from-blue-400 to-blue-500 border-b-4 border-blue-600 py-2 md:py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs md:text-sm disabled:opacity-50 disabled:cursor-not-allowed">1手戻す</button>
+        <button id="btn-pass" class="bg-gradient-to-b from-gray-400 to-gray-500 border-b-4 border-gray-600 py-2 md:py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs md:text-sm">パスする</button>
       </div>
       <div class="grid grid-cols-2 gap-2 col-span-2 md:col-span-1">
-        <button id="btn-shuffle" class="bg-gradient-to-b from-emerald-400 to-emerald-500 border-b-4 border-emerald-600 py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs">問題変更</button>
-        <button id="btn-reset" class="bg-gradient-to-b from-red-400 to-red-500 border-b-4 border-red-600 py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs">リセット</button>
+        <button id="btn-shuffle" class="bg-gradient-to-b from-emerald-400 to-emerald-500 border-b-4 border-emerald-600 py-1.5 md:py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-[10px] md:text-xs">問題変更</button>
+        <button id="btn-reset" class="bg-gradient-to-b from-red-400 to-red-500 border-b-4 border-red-600 py-1.5 md:py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-[10px] md:text-xs">リセット</button>
       </div>
+    </div>
+
+    <!-- 設定パネルを下に配置し、mt-autoで下端へ固定 -->
+    <div id="settings-panel" class="flex flex-col gap-2.5 mt-auto bg-white/70 p-3 rounded-[1.5rem] border-2 border-white shadow-sm relative z-10 overflow-hidden transition-all duration-300 flex-shrink-0">
+      <div class="absolute top-[-10px] right-[-10px] w-16 h-16 bg-orange-200 opacity-20 rounded-full blur-xl pointer-events-none"></div>
+      <div class="text-sm md:text-base font-black text-orange-900 tracking-wider flex justify-between items-center border-b-2 border-orange-200/50 pb-1.5">
+        <span>もんだいの設定</span>
+        <svg id="lock-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 text-orange-500 opacity-0 transition-opacity duration-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
+      </div>
+      
+      <div class="flex flex-col gap-2 relative z-10">
+        <!-- 文字数選択 -->
+        <div class="flex gap-1.5" id="length-buttons">
+          <button class="btn-setting flex-1 py-1.5 md:py-2 rounded-lg font-black text-xs md:text-sm setting-btn" data-type="length" data-value="1">漢字 1文字</button>
+          <button class="btn-setting flex-1 py-1.5 md:py-2 rounded-lg font-black text-xs md:text-sm setting-btn" data-type="length" data-value="2">熟語 2文字</button>
+        </div>
+        
+        <!-- 学年選択 -->
+        <div class="grid grid-cols-2 gap-1.5" id="grade-buttons">
+          <button class="btn-setting py-1.5 md:py-2 rounded-lg font-black text-xs md:text-sm setting-btn" data-type="grade" data-value="upTo3">1〜3年生</button>
+          <button class="btn-setting py-1.5 md:py-2 rounded-lg font-black text-xs md:text-sm setting-btn" data-type="grade" data-value="only4">4年生</button>
+          <button class="btn-setting py-1.5 md:py-2 rounded-lg font-black text-xs md:text-sm setting-btn" data-type="grade" data-value="only5">5年生</button>
+          <button id="btn-custom-grade" class="btn-setting py-1.5 md:py-2 rounded-lg font-black text-[10px] md:text-xs setting-btn leading-tight" data-type="grade" data-value="custom" disabled>オリジナル<br>(先生の問題)</button>
+        </div>
+      </div>
+      
+      <div class="flex items-center justify-between mt-1 gap-2">
+        <button id="btn-import-csv" class="relative z-10 flex-1 bg-white text-orange-600 border-2 border-orange-300 font-black py-1.5 rounded-lg text-[10px] md:text-xs shadow-sm hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          問題を読込
+        </button>
+        <button id="btn-csv-help" class="relative z-10 text-[10px] text-orange-600 font-bold underline hover:text-orange-800 transition-colors whitespace-nowrap">作り方</button>
+      </div>
+      <input type="file" id="file-upload" accept=".csv" class="hidden">
     </div>
   </aside>
 
@@ -117,7 +134,7 @@
       <div class="absolute inset-2 md:inset-4 rounded-sm shadow-[inset_0_5px_15px_rgba(0,0,0,0.8)] pointer-events-none z-10 border border-black/10"></div>
       <div id="board" class="flex-1 w-full h-full bg-emerald-900 grid grid-cols-8 grid-rows-8 gap-[1px] md:gap-[2px] relative z-0 p-[1px]"></div>
     </div>
-    <div class="mt-4 text-[10px] md:text-sm text-gray-500 font-bold tracking-widest text-center tracking-tighter">&copy;2026 ５年漢字バトル！めくってオセロ ICT支援の杜</div>
+    <div class="mt-2 md:mt-4 text-[10px] md:text-sm text-gray-500 font-bold tracking-widest text-center tracking-tighter">&copy;2026 ５年漢字バトル！めくってオセロ ICT支援の杜</div>
   </main>
 
   <!-- Modals -->
@@ -431,8 +448,16 @@
         document.getElementById('btn-reset').onclick = () => controller.showConfirm('reset');
         document.getElementById('btn-shuffle').onclick = () => controller.showConfirm('shuffle');
         document.getElementById('btn-restart').onclick = () => controller.handleRestart();
-        document.getElementById('select-length').onchange = (e) => controller.handleSettingsChange('length', e.target.value);
-        document.getElementById('select-grade').onchange = (e) => controller.handleSettingsChange('grade', e.target.value);
+        
+        // 設定ボタンのイベントバインド
+        document.querySelectorAll('.setting-btn').forEach(btn => {
+          btn.onclick = (e) => {
+            if (e.target.disabled) return;
+            const type = e.target.dataset.type;
+            const value = e.target.dataset.value;
+            controller.handleSettingsChange(type, value);
+          };
+        });
         
         // Modals
         document.getElementById('btn-confirm-no').onclick = () => controller.closeConfirm();
@@ -444,11 +469,27 @@
         document.getElementById('btn-close-clear').onclick = () => { controller.sound.playTap(); document.getElementById('modal-clear').classList.add('hidden'); };
       }
 
-      initSettingsUI(hasCustomData) {
-        const optCustom = document.getElementById('opt-custom');
+      updateSettingsUI(length, grade) {
+        document.querySelectorAll('.setting-btn').forEach(btn => {
+          const type = btn.dataset.type;
+          const value = btn.dataset.value;
+          
+          if ((type === 'length' && value === length) || (type === 'grade' && value === grade)) {
+            btn.classList.add('active');
+            btn.classList.remove('inactive');
+          } else {
+            btn.classList.add('inactive');
+            btn.classList.remove('active');
+          }
+        });
+      }
+
+      initSettingsUI(hasCustomData, currentGrade) {
+        const optCustom = document.getElementById('btn-custom-grade');
         if (hasCustomData) {
           optCustom.disabled = false;
         }
+        // 初期状態でのボタンの見た目反映は controller の init から呼ばれる updateSettingsUI で行う
       }
 
       setUILock(locked) {
@@ -458,8 +499,19 @@
       }
 
       setSettingsLock(locked) {
-        const selLen = document.getElementById('select-length'), selGrd = document.getElementById('select-grade'), btnImport = document.getElementById('btn-import-csv'), panel = document.getElementById('settings-panel'), lockIcon = document.getElementById('lock-icon');
-        selLen.disabled = locked; selGrd.disabled = locked; btnImport.disabled = locked;
+        const btnImport = document.getElementById('btn-import-csv');
+        const panel = document.getElementById('settings-panel');
+        const lockIcon = document.getElementById('lock-icon');
+        
+        btnImport.disabled = locked;
+        document.querySelectorAll('.setting-btn').forEach(btn => {
+          // オリジナルボタンは、カスタムデータがない場合は常にdisabledのままにする
+          if (btn.id === 'btn-custom-grade' && !btn.classList.contains('active') && !btn.dataset.hasData) {
+             // カスタムデータ有無は controller側で管理されているのでここではシンプルにlockedフラグに従う
+          }
+          btn.disabled = locked;
+        });
+
         if (locked) { panel.classList.add('opacity-80', 'grayscale-[0.4]'); lockIcon.classList.remove('opacity-0'); } 
         else { panel.classList.remove('opacity-80', 'grayscale-[0.4]'); lockIcon.classList.add('opacity-0'); }
       }
@@ -606,7 +658,8 @@
 
       init() {
         this.view.bindEvents(this);
-        this.view.initSettingsUI(this.data.customWords.length >= 60);
+        this.view.initSettingsUI(this.data.customWords.length >= 60, this.data.currentGrade);
+        this.view.updateSettingsUI(this.data.currentLength, this.data.currentGrade);
         this.resetGame(true);
       }
 
@@ -615,6 +668,11 @@
         if (generateNewWords) this.data.generateWords();
         this.state.reset();
         this.view.setSettingsLock(false);
+        // ロック解除後、カスタムデータがない場合はオリジナルボタンを再度disabledにする
+        if(this.data.customWords.length < 60) {
+             document.getElementById('btn-custom-grade').disabled = true;
+        }
+
         this.view.setUILock(false);
         this.view.initBoardDOM(this.data.currentWords, (r, c) => this.handleCellClick(r, c));
         this.view.updateBoardState(this.state);
@@ -687,8 +745,9 @@
         reader.onload = (event) => {
           try {
             this.data.parseCSV(event.target.result);
-            document.getElementById('opt-custom').disabled = false;
-            document.getElementById('select-grade').value = 'custom';
+            document.getElementById('btn-custom-grade').disabled = false;
+            this.data.currentGrade = 'custom';
+            this.view.updateSettingsUI(this.data.currentLength, this.data.currentGrade);
             Toast.show(`成功！ ${this.data.customWords.length}個の問題を読み込みました。`, 'success');
             this.resetGame(true);
           } catch(err) { 
@@ -703,7 +762,12 @@
         if (this.view.isAnimating || !this.state.restoreState()) return;
         this.sound.playTap();
         document.getElementById('modal-clear').classList.add('hidden');
-        if (!this.state.isGameStarted) this.view.setSettingsLock(false);
+        if (!this.state.isGameStarted) {
+             this.view.setSettingsLock(false);
+             if(this.data.customWords.length < 60) {
+                 document.getElementById('btn-custom-grade').disabled = true;
+             }
+        }
         this.view.updateUI(this.state); 
         this.view.updateBoardState(this.state, true); 
         this.view.updateUndoButton(this.state.historyStack.length > 0);
@@ -743,9 +807,13 @@
       }
 
       handleRestart() { document.getElementById('modal-clear').classList.add('hidden'); this.resetGame(true); }
+      
       handleSettingsChange(type, value) {
         if (type === 'length') this.data.currentLength = value;
         else if (type === 'grade') this.data.currentGrade = value;
+        
+        this.sound.playTap();
+        this.view.updateSettingsUI(this.data.currentLength, this.data.currentGrade);
         this.resetGame(true);
       }
     }
