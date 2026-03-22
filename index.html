@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>５年漢字バトル！めくってオセロ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'UD デジタル 教科書体 NK-R', 'UD デジタル 教科書体 N-R', 'Klee One', 'Yu Mincho', 'BIZ UDPMincho', serif; }
+    .font-maru { font-family: 'Zen Maru Gothic', 'UD デジタル 教科書体 NK-R', sans-serif; }
+    .font-kyokasho { font-family: 'UD デジタル 教科書体 NK-R', 'Klee One', serif; }
+    .stone-container { perspective: 1000px; }
+    .stone { transition: transform 1.0s cubic-bezier(0.4, 0.0, 0.2, 1); transform-style: preserve-3d; }
+    .stone.flipped { transform: rotateY(180deg); }
+    .stone-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .stone-back { transform: rotateY(180deg); }
+    .cell-flip-container { perspective: 1000px; container-type: inline-size; height: 100%; width: 100%; }
+    .cell-flip-inner { transition: transform 1.0s cubic-bezier(0.4, 0.0, 0.2, 1); transform-style: preserve-3d; }
+    .cell-flip-inner.is-flipped { transform: rotateY(180deg); }
+    .cell-flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .cell-flip-back { transform: rotateY(180deg); }
+    @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    .animate-bounce-subtle { animation: bounce-subtle 2s infinite ease-in-out; }
+    @keyframes pulse-glow-p1 { 0%, 100% { background-color: #0c4a6e; box-shadow: inset 0 0 0 2px #0ea5e9; } 50% { background-color: #075985; box-shadow: inset 0 0 0 4px #38bdf8, inset 0 0 20px #38bdf8; } }
+    @keyframes pulse-glow-p2 { 0%, 100% { background-color: #831843; box-shadow: inset 0 0 0 2px #db2777; } 50% { background-color: #9d174d; box-shadow: inset 0 0 0 4px #f472b6, inset 0 0 20px #f472b6; } }
+    .active-player-card { background: white !important; box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.3) !important; transform: scale(1.08) translateY(-10px); z-index: 30; border: 4px solid white !important; }
+    select { appearance: none; -webkit-appearance: none; }
+    * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .can-move-p1 { animation: pulse-glow-p1 1.5s infinite ease-in-out !important; cursor: pointer; }
+    .can-move-p2 { animation: pulse-glow-p2 1.5s infinite ease-in-out !important; cursor: pointer; }
+    .showing-highlight { box-shadow: 0 0 0 4px white, 0 0 15px rgba(255, 255, 255, 0.9) !important; z-index: 40; }
+    .place-marker { width: 100%; height: 100%; border-radius: 50%; }
+    .ui-locked { pointer-events: none; opacity: 0.6; filter: grayscale(0.5); }
+    
+    /* Toast Animation */
+    @keyframes slideInDown { from { transform: translate(-50%, -100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    .toast-enter { animation: slideInDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+    .toast-exit { animation: fadeOut 0.3s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-slate-200 transition-colors duration-500 h-screen w-screen flex flex-col md:flex-row overflow-hidden text-gray-800 font-maru relative">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-4 left-1/2 z-[200] flex flex-col gap-2 pointer-events-none w-11/12 max-w-md"></div>
+
+  <aside id="control-panel" class="w-full md:w-80 h-auto md:h-full p-4 flex flex-col gap-2 bg-gradient-to-b from-amber-50 to-orange-100 shadow-[10px_0_20px_rgba(0,0,0,0.1)] z-20 border-r-4 border-orange-300 relative text-gray-800 transition-opacity duration-300">
+    <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(#fb923c 2px, transparent 2px); background-size: 20px 20px;"></div>
+    
+    <div class="relative z-10">
+      <h1 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)] leading-tight text-center md:text-left flex items-center justify-center md:justify-start gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M11.646 3.097c.216-.453.864-.453 1.08 0l1.411 2.96 3.197.464c.485.07.68.67.329 1.01l-2.314 2.253.546 3.185c.083.483-.424.85-.857.625L12 11.96l-2.86 1.505c-.433.227-.94-.142-.857-.625l.546-3.185-2.314-2.253c-.351-.34-.156-.94.33-1.01l3.196-.464 1.412-2.96z"/></svg>
+        <span class="flex flex-col whitespace-nowrap text-left"><span>５年漢字バトル！</span><span>めくってオセロ</span></span>
+      </h1>
+      <button id="btn-help" class="bg-white text-orange-600 border-2 border-orange-400 font-black py-1 px-6 rounded-full text-sm shadow-[0_4px_0_#fb923c] active:translate-y-1 transition-all mx-auto md:ml-0 mt-1 block">あそびかた</button>
+    </div>
+
+    <div id="settings-panel" class="flex flex-col gap-2 mt-1 bg-gradient-to-br from-yellow-400 to-orange-500 p-3 md:p-4 rounded-[1.5rem] border-4 border-white shadow-[0_6px_0_#ea580c] relative z-10 overflow-hidden transition-all duration-300">
+      <div class="absolute top-[-10px] right-[-10px] w-16 h-16 bg-white opacity-20 rounded-full blur-xl pointer-events-none"></div>
+      <div class="text-base font-black text-white drop-shadow-md tracking-wider flex justify-between items-center">
+        <span>もんだいの設定</span>
+        <svg id="lock-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white opacity-0 transition-opacity duration-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
+      </div>
+      <div class="flex flex-col gap-2 relative z-10">
+        <select id="select-length" class="w-full bg-white text-orange-900 border-b-4 border-orange-200 py-2.5 px-4 rounded-xl text-lg font-black focus:outline-none cursor-pointer disabled:opacity-70 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed transition-all leading-tight">
+          <option value="2">熟語 2文字</option><option value="1">漢字 1文字</option>
+        </select>
+        <select id="select-grade" class="w-full bg-white text-orange-900 border-b-4 border-orange-200 py-2.5 px-4 rounded-xl text-lg font-black focus:outline-none cursor-pointer disabled:opacity-70 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed transition-all leading-tight">
+          <option value="only5" selected>5年生の漢字</option>
+          <option value="only4">4年生の漢字</option>
+          <option value="upTo3">1〜3年生の漢字</option>
+          <option value="custom" id="opt-custom" disabled>先生のオリジナル問題</option>
+        </select>
+      </div>
+      <button id="btn-import-csv" class="relative z-10 w-full mt-1 bg-white text-orange-600 border-2 border-orange-300 font-black py-1.5 rounded-lg text-xs shadow-sm hover:bg-orange-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+        問題データを読み込む
+      </button>
+      <div class="relative z-10 text-right"><button id="btn-csv-help" class="text-[10px] text-white font-bold underline hover:text-orange-200 transition-colors">※オリジナル問題の作り方</button></div>
+      <input type="file" id="file-upload" accept=".csv" class="hidden">
+    </div>
+
+    <div class="flex flex-col gap-2 mt-1 bg-white/60 p-3 rounded-3xl border-2 border-white shadow-inner relative z-10">
+      <div id="turn-indicator" class="text-xl font-black py-2 rounded-full text-center shadow-lg border-4 transition-all duration-300 animate-bounce-subtle">準備中</div>
+      <div class="flex justify-around items-center h-24 md:h-28 relative">
+        <div id="p1-box" class="flex flex-col items-center p-1 rounded-2xl border-4 border-transparent transition-all duration-500 w-[45%]">
+          <div class="w-10 h-10 md:w-12 md:h-12 mb-1 rounded-full bg-sky-300 border-2 border-sky-400 shadow-md flex items-center justify-center text-sky-900 font-black text-lg">水</div>
+          <span id="score-1" class="text-3xl md:text-4xl font-black text-gray-800 leading-none">0</span>
+        </div>
+        <div class="text-lg font-black text-orange-300 uppercase tracking-tighter">VS</div>
+        <div id="p2-box" class="flex flex-col items-center p-1 rounded-2xl border-4 border-transparent transition-all duration-500 w-[45%]">
+          <div class="w-10 h-10 md:w-12 md:h-12 mb-1 rounded-full bg-pink-400 border-2 border-pink-500 shadow-md flex items-center justify-center text-pink-900 font-black text-lg">ピ</div>
+          <span id="score-2" class="text-3xl md:text-4xl font-black text-gray-800 leading-none">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-1 gap-2 mt-auto text-white relative z-10">
+      <div class="grid grid-cols-2 gap-2 col-span-2 md:col-span-1">
+        <button id="btn-undo" disabled class="bg-gradient-to-b from-blue-400 to-blue-500 border-b-4 border-blue-600 py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed">1手戻す</button>
+        <button id="btn-pass" class="bg-gradient-to-b from-gray-400 to-gray-500 border-b-4 border-gray-600 py-2.5 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-sm">パスする</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2 col-span-2 md:col-span-1">
+        <button id="btn-shuffle" class="bg-gradient-to-b from-emerald-400 to-emerald-500 border-b-4 border-emerald-600 py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs">問題変更</button>
+        <button id="btn-reset" class="bg-gradient-to-b from-red-400 to-red-500 border-b-4 border-red-600 py-2 rounded-xl font-black shadow-md active:translate-y-1 active:border-0 transition-all text-xs">リセット</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col items-center justify-center p-2 md:p-8 relative shadow-inner">
+    <div id="board-overlay" class="absolute inset-0 z-50 hidden"></div>
+    <div class="w-full max-w-[calc(100vh-6rem)] aspect-square bg-gradient-to-br from-amber-700 via-yellow-900 to-amber-950 p-2 md:p-4 rounded-2xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border-4 border-amber-950 relative overflow-hidden">
+      <div class="absolute inset-2 md:inset-4 rounded-sm shadow-[inset_0_5px_15px_rgba(0,0,0,0.8)] pointer-events-none z-10 border border-black/10"></div>
+      <div id="board" class="flex-1 w-full h-full bg-emerald-900 grid grid-cols-8 grid-rows-8 gap-[1px] md:gap-[2px] relative z-0 p-[1px]"></div>
+    </div>
+    <div class="mt-4 text-[10px] md:text-sm text-gray-500 font-bold tracking-widest text-center tracking-tighter">&copy;2026 5年漢字バトル！めくってオセロ ICT支援の杜</div>
+  </main>
+
+  <!-- Modals -->
+  <div id="modal-clear" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-[100] backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl border-8 border-yellow-400 text-center p-6 transform scale-0 transition-transform duration-500 flex flex-col max-h-[90vh]" id="clear-content">
+      <h2 class="text-3xl md:text-4xl font-black mb-2 flex-shrink-0">しゅうりょう！</h2>
+      <div id="winner-text" class="text-xl md:text-2xl font-bold mb-4 p-4 rounded-2xl border-4 flex-shrink-0"></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 overflow-y-auto flex-1 min-h-0 text-left">
+        <div class="bg-sky-50 rounded-xl overflow-hidden border-2 border-sky-200 flex flex-col"><h3 class="font-bold text-sky-800 text-center bg-sky-200 py-1.5 text-sm">水色が獲得</h3><div id="p1-list" class="p-2 space-y-1 overflow-y-auto flex-1 bg-sky-50 font-sans"></div></div>
+        <div class="bg-pink-50 rounded-xl overflow-hidden border-2 border-pink-200 flex flex-col"><h3 class="font-bold text-pink-800 text-center bg-pink-200 py-1.5 text-sm">ピンクが獲得</h3><div id="p2-list" class="p-2 space-y-1 overflow-y-auto flex-1 bg-pink-50 font-sans"></div></div>
+        <div class="bg-gray-100 rounded-xl overflow-hidden border-2 border-red-300 flex flex-col shadow-[0_0_15px_rgba(239,68,68,0.2)]"><h3 class="font-bold text-red-700 text-center bg-red-100 py-1.5 text-sm flex flex-col leading-tight"><span>復習リスト</span><span class="text-[10px] font-normal text-red-600">（パス・未獲得）</span></h3><div id="pass-list" class="p-2 space-y-1 overflow-y-auto flex-1 bg-gray-50 font-sans"></div></div>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <button id="btn-restart" class="flex-1 bg-emerald-500 text-white font-bold py-4 rounded-xl text-xl shadow-lg active:scale-95 transition-all">もう一度遊ぶ</button>
+        <button id="btn-close-clear" class="w-1/3 bg-gray-400 text-white font-bold py-4 rounded-xl text-xl shadow-lg active:scale-95 transition-all">とじる</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="modal-pass" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-[90] backdrop-blur-sm transition-opacity duration-300 opacity-0 pointer-events-none">
+    <div class="bg-white px-8 py-6 rounded-3xl shadow-2xl border-4 border-orange-400 text-center transform scale-90 transition-transform duration-300" id="pass-content">
+      <div class="text-3xl font-black text-orange-600 mb-2">パス！</div><div class="text-lg font-bold text-gray-600">おける場所がありません</div>
+    </div>
+  </div>
+
+  <div id="modal-confirm" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[100] backdrop-blur-sm transition-opacity duration-300 opacity-0">
+    <div class="bg-white px-6 py-8 rounded-3xl shadow-2xl border-4 border-red-500 text-center transform scale-90 transition-transform duration-300 w-11/12 max-w-sm" id="confirm-content">
+      <div class="text-2xl font-black text-red-600 mb-4 flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667-1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>ちゅうい！
+      </div>
+      <div id="confirm-message" class="text-lg font-bold text-gray-700 mb-6 leading-relaxed text-left"></div>
+      <div class="flex gap-3">
+        <button id="btn-confirm-no" class="flex-1 bg-gray-400 text-white font-bold py-3 rounded-xl text-lg shadow-md active:scale-95 transition-all">やめる</button>
+        <button id="btn-confirm-yes" class="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl text-lg shadow-md active:scale-95 transition-all">はい</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-help" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[110] backdrop-blur-sm transition-opacity duration-300 opacity-0 p-4">
+    <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl border-4 border-sky-400 transform scale-90 transition-transform duration-300 w-full max-w-lg flex flex-col" id="help-content">
+      <div class="text-xl md:text-2xl font-black text-sky-600 mb-4 flex items-center gap-2 border-b-2 border-sky-200 pb-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>あそびかた</div>
+      <div class="text-sm md:text-base font-bold text-gray-700 mb-6 leading-relaxed text-left space-y-3">
+        <p class="flex gap-2"><span class="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-md shrink-0">1</span> 置きたいマスをタップして、漢字をめくります。</p>
+        <p class="flex gap-2"><span class="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-md shrink-0">2</span> もう一度タップすると、石を置きます。</p>
+        <p class="flex gap-2"><span class="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-md shrink-0">3</span> わからない時は「パスする」ボタンを押します。</p>
+        <p class="flex gap-2"><span class="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-md shrink-0">4</span> まちがえて置いた時は「1手戻す」でやり直せます。</p>
+      </div>
+      <button id="btn-close-help" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-xl text-lg shadow-md active:scale-95 transition-all">わかった！</button>
+    </div>
+  </div>
+
+  <div id="modal-csv-help" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[110] backdrop-blur-sm transition-opacity duration-300 opacity-0 p-4">
+    <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl border-4 border-orange-400 transform scale-90 transition-transform duration-300 w-full max-w-lg max-h-[90vh] flex flex-col" id="csv-help-content">
+      <div class="text-xl md:text-2xl font-black text-orange-600 mb-4 flex items-center gap-2 border-b-2 border-orange-200 pb-2 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>オリジナル問題の作り方</div>
+      <div class="text-sm md:text-base font-medium text-gray-700 mb-4 leading-relaxed overflow-y-auto flex-1 text-left space-y-4">
+        <p>Excelなどの表計算ソフトを使って、以下のルールでデータを作成し、<strong class="text-red-500">CSV形式（カンマ区切り）</strong>で保存してください。</p>
+        <div class="bg-gray-100 p-3 rounded-xl border border-gray-300 font-maru">
+          <h3 class="font-bold text-gray-800 mb-2 border-b border-gray-300 pb-1">■ データの並び順（左から）</h3>
+          <ol class="list-decimal list-inside space-y-1 pl-1"><li><strong>A列：</strong> ひらがな</li><li><strong>B列：</strong> 漢字（裏面の答え）</li><li><strong>C列：</strong> ヒント</li></ol>
+        </div>
+        <div class="bg-orange-50 p-3 rounded-xl border border-orange-200 font-maru">
+          <h3 class="font-bold text-orange-800 mb-2 border-b border-orange-200 pb-1">■ 注意事項</h3>
+          <ul class="list-disc list-inside space-y-1 pl-1 text-orange-900 text-xs"><li>データは<strong>最低60個</strong>必要です。</li><li>末尾約20個は「難しい問題」として四隅に配置されます。</li><li>項目内にカンマ(,)を含める場合は、ダブルクォーテーション(")で囲んでください。</li></ul>
+        </div>
+      </div>
+      <button id="btn-close-csv-help" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-xl text-lg shadow-md active:scale-95 transition-all flex-shrink-0">とじる</button>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // UI Utilities
+    // ==========================================
+    const Toast = {
+      show: (message, type = 'success') => {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const bgClass = type === 'success' ? 'bg-emerald-500' : 'bg-red-500';
+        toast.className = `toast-enter ${bgClass} text-white px-6 py-3 rounded-xl shadow-lg font-bold text-center border-2 border-white pointer-events-auto`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+          toast.classList.replace('toast-enter', 'toast-exit');
+          toast.addEventListener('animationend', () => toast.remove());
+        }, 3000);
+      }
+    };
+
+    // ==========================================
+    // Core Utilities & Data (Hardcoded DB)
+    // ==========================================
+    function shuffleArray(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // カンマやダブルクォーテーションを適切に処理する堅牢なCSVパーサー
+    function splitCSV(str) {
+      const result = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < str.length; i++) {
+        const char = str[i];
+        if (char === '"' && str[i+1] === '"' && inQuotes) {
+          cur += '"'; i++;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(cur); cur = '';
+        } else {
+          cur += char;
+        }
+      }
+      result.push(cur);
+      return result.map(s => s.trim());
+    }
+
+    const DB_UPTO3 = {
+      len1: [{"text":"みず","kanji":"水","hint":"のむもの"},{"text":"やま","kanji":"山","hint":"たかい"},{"text":"かわ","kanji":"川","hint":"ながれる"},{"text":"き","kanji":"木","hint":"もりにある"},{"text":"ひ","kanji":"日","hint":"たいよう"},{"text":"つき","kanji":"月","hint":"よる"},{"text":"ひ","kanji":"火","hint":"あつい"},{"text":"つち","kanji":"土","hint":"じめん"},{"text":"きん","kanji":"金","hint":"おかね"},{"text":"ほん","kanji":"本","hint":"よむもの"},{"text":"て","kanji":"手","hint":"つかむ"},{"text":"あし","kanji":"足","hint":"あるく"},{"text":"め","kanji":"目","hint":"みる"},{"text":"みみ","kanji":"耳","hint":"きく"},{"text":"くち","kanji":"口","hint":"たべる"},{"text":"ひと","kanji":"人","hint":"にんげん"},{"text":"こ","kanji":"子","hint":"こども"},{"text":"おんな","kanji":"女","hint":"じょせい"},{"text":"おとこ","kanji":"男","hint":"だんせい"},{"text":"そら","kanji":"空","hint":"あおい"},{"text":"うみ","kanji":"海","hint":"みず"},{"text":"かぜ","kanji":"風","hint":"ふく"},{"text":"おと","kanji":"音","hint":"きこえる"},{"text":"あめ","kanji":"雨","hint":"ふる"},{"text":"はる","kanji":"春","hint":"あたたかい"},{"text":"なつ","kanji":"夏","hint":"あつい"},{"text":"あき","kanji":"秋","hint":"すずしい"},{"text":"ふゆ","kanji":"冬","hint":"さむい"},{"text":"うえ","kanji":"上","hint":"たかい"},{"text":"した","kanji":"下","hint":"ひくい"},{"text":"ひだり","kanji":"左","hint":"て"},{"text":"みぎ","kanji":"右","hint":"て"},{"text":"まる","kanji":"円","hint":"かたち"},{"text":"いし","kanji":"石","hint":"かたい"},{"text":"た","kanji":"田","hint":"おこめ"},{"text":"もり","kanji":"森","hint":"き"},{"text":"むら","kanji":"村","hint":"まち"},{"text":"なまえ","kanji":"名","hint":"よばれる"},{"text":"あさ","kanji":"朝","hint":"おきる"},{"text":"よる","kanji":"夜","hint":"ねる"},{"text":"いけ","kanji":"池","hint":"みず"},{"text":"はな","kanji":"花","hint":"さく"},{"text":"くさ","kanji":"草","hint":"みどり"},{"text":"うし","kanji":"牛","hint":"もーもー"},{"text":"うま","kanji":"馬","hint":"ひひーん"},{"text":"いぬ","kanji":"犬","hint":"わんわん"},{"text":"むし","kanji":"虫","hint":"ちいさい"},{"text":"かい","kanji":"貝","hint":"うみ"},{"text":"たけ","kanji":"竹","hint":"のびる"},{"text":"じ","kanji":"字","hint":"もじ"},{"text":"え","kanji":"絵","hint":"かく"},{"text":"こころ","kanji":"心","hint":"おもう"},{"text":"ちから","kanji":"力","hint":"パワー"},{"text":"もん","kanji":"門","hint":"いりぐち"},{"text":"いろ","kanji":"色","hint":"あかあお"},{"text":"まち","kanji":"町","hint":"すむところ"},{"text":"いと","kanji":"糸","hint":"ぬう"},{"text":"こえ","kanji":"声","hint":"だす"},{"text":"くるま","kanji":"車","hint":"のりもの"},{"text":"まなぶ","kanji":"学","hint":"べんきょう"},{"text":"がっこう","kanji":"校","hint":"いくところ"},{"text":"さき","kanji":"先","hint":"まえ"},{"text":"いきる","kanji":"生","hint":"いのち"},{"text":"とし","kanji":"年","hint":"カレンダー"},{"text":"くみ","kanji":"組","hint":"クラス"},{"text":"ひゃく","kanji":"百","hint":"かず"},{"text":"せん","kanji":"千","hint":"かず"},{"text":"まん","kanji":"万","hint":"かず"},{"text":"たま","kanji":"玉","hint":"まるい"},{"text":"おう","kanji":"王","hint":"えらい"},{"text":"あか","kanji":"赤","hint":"いろ"},{"text":"あお","kanji":"青","hint":"いろ"},{"text":"しろ","kanji":"白","hint":"いろ"},{"text":"くろ","kanji":"黒","hint":"いろ"},{"text":"みる","kanji":"見","hint":"め"},{"text":"たつ","kanji":"立","hint":"あし"},{"text":"やすむ","kanji":"休","hint":"ねる"},{"text":"はいる","kanji":"入","hint":"なかへ"},{"text":"でる","kanji":"出","hint":"そとへ"},{"text":"はやし","kanji":"林","hint":"き"},{"text":"ゆう","kanji":"夕","hint":"よるのまえ"},{"text":"てん","kanji":"天","hint":"そら"},{"text":"き","kanji":"気","hint":"きもち"},{"text":"はれ","kanji":"晴","hint":"いいてんき"},{"text":"こめ","kanji":"米","hint":"たべる"},{"text":"まめ","kanji":"豆","hint":"たべる"},{"text":"にく","kanji":"肉","hint":"たべる"},{"text":"さかな","kanji":"魚","hint":"およぐ"},{"text":"とり","kanji":"鳥","hint":"とぶ"},{"text":"はね","kanji":"羽","hint":"とり"},{"text":"うた","kanji":"歌","hint":"うたう"},{"text":"いう","kanji":"言","hint":"はなす"},{"text":"はなし","kanji":"話","hint":"しゃべる"},{"text":"かく","kanji":"書","hint":"もじ"},{"text":"かみ","kanji":"紙","hint":"かく"},{"text":"つくえ","kanji":"机","hint":"べんきょう"},{"text":"ふね","kanji":"船","hint":"うみ"},{"text":"みち","kanji":"道","hint":"あるく"},{"text":"てん","kanji":"点","hint":"マーク"},{"text":"はな","kanji":"鼻","hint":"におい"},{"text":"ゆき","kanji":"雪","hint":"しろい"},{"text":"まる","kanji":"丸","hint":"かたち"},{"text":"つの","kanji":"角","hint":"かたち"},{"text":"ゆみ","kanji":"弓","hint":"ぶき"},{"text":"や","kanji":"矢","hint":"とり"},{"text":"かたな","kanji":"刀","hint":"きる"},{"text":"むぎ","kanji":"麦","hint":"たべる"},{"text":"ひつじ","kanji":"羊","hint":"メー"},{"text":"ほし","kanji":"星","hint":"そら"},{"text":"くも","kanji":"雲","hint":"そら"},{"text":"たに","kanji":"谷","hint":"やまのあいだ"},{"text":"いわ","kanji":"岩","hint":"いし"},{"text":"はら","kanji":"原","hint":"ひろい"},{"text":"の","kanji":"野","hint":"はらっぱ"},{"text":"こたえ","kanji":"答","hint":"へんじ"},{"text":"かたる","kanji":"語","hint":"ことば"},{"text":"よむ","kanji":"読","hint":"ほん"},{"text":"しるす","kanji":"記","hint":"メモ"},{"text":"かお","kanji":"顔","hint":"あたま"},{"text":"はしる","kanji":"走","hint":"あし"},{"text":"ひかり","kanji":"光","hint":"まぶしい"}],
+      len2: [{"text":"さんすう","kanji":"算数","hint":"かず"},{"text":"こくご","kanji":"国語","hint":"ことば"},{"text":"りか","kanji":"理科","hint":"じっけん"},{"text":"しゃかい","kanji":"社会","hint":"ちず"},{"text":"たいいく","kanji":"体育","hint":"うんどう"},{"text":"おんがく","kanji":"音楽","hint":"うた"},{"text":"りょうしん","kanji":"両親","hint":"ちちはは"},{"text":"ともだち","kanji":"友達","hint":"なかよし"},{"text":"がっこう","kanji":"学校","hint":"まなぶ"},{"text":"せんせい","kanji":"先生","hint":"おしえる"},{"text":"にっき","kanji":"日記","hint":"きろく"},{"text":"えんそく","kanji":"遠足","hint":"あるく"},{"text":"てんき","kanji":"天気","hint":"はれあめ"},{"text":"げんき","kanji":"元気","hint":"パワー"},{"text":"あさひ","kanji":"朝日","hint":"あさ"},{"text":"しゅくだい","kanji":"宿題","hint":"いえでやる"},{"text":"きょうしつ","kanji":"教室","hint":"へや"},{"text":"あんぜん","kanji":"安全","hint":"あぶなくない"},{"text":"せいかつ","kanji":"生活","hint":"くらし"},{"text":"びょうき","kanji":"病気","hint":"つらい"},{"text":"かいしゃ","kanji":"会社","hint":"おしごと"},{"text":"しんゆう","kanji":"親友","hint":"なかよし"},{"text":"だいじ","kanji":"大事","hint":"たいせつ"},{"text":"ひろば","kanji":"広場","hint":"ひろい"},{"text":"こうえん","kanji":"公園","hint":"あそぶ"},{"text":"どうぐ","kanji":"道具","hint":"つかうもの"},{"text":"なまえ","kanji":"名前","hint":"よばれる"},{"text":"かんじ","kanji":"漢字","hint":"もじ"},{"text":"せかい","kanji":"世界","hint":"ちきゅう"},{"text":"にほん","kanji":"日本","hint":"くに"},{"text":"どうぶつ","kanji":"動物","hint":"いきもの"},{"text":"じかん","kanji":"時間","hint":"とけい"},{"text":"とけい","kanji":"時計","hint":"はかる"},{"text":"でんしゃ","kanji":"電車","hint":"のりもの"},{"text":"りょこう","kanji":"旅行","hint":"でかける"},{"text":"うんどう","kanji":"運動","hint":"うごく"},{"text":"やきゅう","kanji":"野球","hint":"ボール"},{"text":"どくしょ","kanji":"読書","hint":"ほんをよむ"},{"text":"けいさん","kanji":"計算","hint":"すうじ"},{"text":"まいあさ","kanji":"毎朝","hint":"あさ"},{"text":"きょうだい","kanji":"兄弟","hint":"あにおとうと"},{"text":"しまい","kanji":"姉妹","hint":"あねいもうと"},{"text":"さゆう","kanji":"左右","hint":"みぎひだり"},{"text":"じょうげ","kanji":"上下","hint":"うえした"},{"text":"ぜんご","kanji":"前後","hint":"まえうしろ"},{"text":"とうざい","kanji":"東西","hint":"ひがしにし"},{"text":"なんぼく","kanji":"南北","hint":"みなみきた"},{"text":"しゅんか","kanji":"春夏","hint":"はるなつ"},{"text":"しゅうとう","kanji":"秋冬","hint":"あきふゆ"},{"text":"たしょう","kanji":"多少","hint":"おおいすくない"},{"text":"だいしょう","kanji":"大小","hint":"おおきいちいさい"},{"text":"ずこう","kanji":"図工","hint":"えをかく"},{"text":"ほどう","kanji":"歩道","hint":"あるくみち"},{"text":"こうさく","kanji":"工作","hint":"つくる"},{"text":"いけん","kanji":"意見","hint":"お思うこと"},{"text":"あいて","kanji":"相手","hint":"むこう"},{"text":"じゅうしょ","kanji":"住所","hint":"すむところ"},{"text":"ばんごう","kanji":"番号","hint":"すうじ"},{"text":"きごう","kanji":"記号","hint":"マーク"},{"text":"よてい","kanji":"予定","hint":"けいかく"},{"text":"そうだん","kanji":"相談","hint":"はなしあう"},{"text":"あんしん","kanji":"安心","hint":"ほっとする"},{"text":"しゅっぱつ","kanji":"出発","hint":"でかける"},{"text":"しんこう","kanji":"進行","hint":"すすむ"},{"text":"ゆうしょく","kanji":"夕食","hint":"ばんごはん"},{"text":"ちょうしょく","kanji":"朝食","hint":"あさごはん"},{"text":"ちゅうしょく","kanji":"昼食","hint":"ひるごはん"},{"text":"やしょく","kanji":"夜食","hint":"よるごはん"},{"text":"しょくじ","kanji":"食事","hint":"たべる"},{"text":"かいがん","kanji":"海岸","hint":"うみべ"},{"text":"じょうしゃ","kanji":"乗車","hint":"のる"},{"text":"げしゃ","kanji":"下車","hint":"おりる"},{"text":"じょうば","kanji":"乗馬","hint":"うまにのる"},{"text":"すいえい","kanji":"水泳","hint":"およぐ"},{"text":"たいじゅう","kanji":"体重","hint":"おもさ"},{"text":"しんちょう","kanji":"身長","hint":"たかさ"},{"text":"たいりょく","kanji":"体力","hint":"ちから"},{"text":"きょうりょく","kanji":"強力","hint":"つよい"},{"text":"じゃくてん","kanji":"弱点","hint":"よわい"},{"text":"ひゃくてん","kanji":"百点","hint":"テスト"},{"text":"ばんこく","kanji":"万国","hint":"せかい"},{"text":"ぜんこく","kanji":"全国","hint":"にほん"},{"text":"ぜんいん","kanji":"全員","hint":"みんな"},{"text":"はんぶん","kanji":"半分","hint":"わける"},{"text":"おんすい","kanji":"温水","hint":"あたたかい"},{"text":"しゅじん","kanji":"主人","hint":"えらい"},{"text":"しゅやく","kanji":"主役","hint":"めだつ"},{"text":"はつげん","kanji":"発言","hint":"しゃべる"},{"text":"あしおと","kanji":"足音","hint":"あるく"},{"text":"あしくび","kanji":"足首","hint":"からだ"},{"text":"てくび","kanji":"手首","hint":"からだ"},{"text":"おとな","kanji":"大人","hint":"おおきい"},{"text":"はんとう","kanji":"半島","hint":"ちけい"},{"text":"れっとう","kanji":"列島","hint":"しま"},{"text":"ひょうざん","kanji":"氷山","hint":"こおり"},{"text":"すみび","kanji":"炭火","hint":"あつい"},{"text":"やっきょく","kanji":"薬局","hint":"くすり"},{"text":"きょくいん","kanji":"局員","hint":"はたらく"},{"text":"いいん","kanji":"委員","hint":"クラス"},{"text":"やくいん","kanji":"役員","hint":"まとめる"},{"text":"とうしゅ","kanji":"投手","hint":"なげる"},{"text":"かしゅ","kanji":"歌手","hint":"うたう"},{"text":"めいしゅ","kanji":"名手","hint":"うまい"},{"text":"じょしゅ","kanji":"助手","hint":"たすける"},{"text":"じょげん","kanji":"助言","hint":"アドバイス"},{"text":"はつおん","kanji":"発音","hint":"こえ"},{"text":"しゅしょう","kanji":"首相","hint":"えらい"},{"text":"たいし","kanji":"大使","hint":"つかい"},{"text":"てんし","kanji":"天使","hint":"そら"},{"text":"あくにん","kanji":"悪人","hint":"わるい"},{"text":"びじん","kanji":"美人","hint":"きれい"},{"text":"びじょ","kanji":"美女","hint":"きれい"},{"text":"しょうじょ","kanji":"少女","hint":"おんなのこ"},{"text":"しょうねん","kanji":"少年","hint":"おとこのこ"},{"text":"せいねん","kanji":"青年","hint":"わかもの"},{"text":"こびと","kanji":"小人","hint":"ちいさい"},{"text":"しゅご","kanji":"主語","hint":"ぶんしょう"},{"text":"ようご","kanji":"用語","hint":"ことば"}]
+    };
+
+    const DB_ONLY4 = {
+      len1: [{"text":"あい","kanji":"愛","hint":"すき"},{"text":"あん","kanji":"案","hint":"かんがえ"},{"text":"い","kanji":"以","hint":"より"},{"text":"ころも","kanji":"衣","hint":"ふく"},{"text":"くらい","kanji":"位","hint":"じゅんい"},{"text":"かこむ","kanji":"囲","hint":"まわり"},{"text":"い","kanji":"胃","hint":"おなか"},{"text":"しるし","kanji":"印","hint":"はんこ"},{"text":"えい","kanji":"英","hint":"ことば"},{"text":"さかえ","kanji":"栄","hint":"よくなる"},{"text":"しお","kanji":"塩","hint":"しょっぱい"},{"text":"くわえる","kanji":"加","hint":"たす"},{"text":"はたす","kanji":"果","hint":"くだもの"},{"text":"か","kanji":"貨","hint":"おかね"},{"text":"か","kanji":"課","hint":"チーム"},{"text":"め","kanji":"芽","hint":"はっぱ"},{"text":"あらためる","kanji":"改","hint":"なおす"},{"text":"がい","kanji":"害","hint":"わるい"},{"text":"まち","kanji":"街","hint":"みち"},{"text":"おのおの","kanji":"各","hint":"それぞれ"},{"text":"おぼえる","kanji":"覚","hint":"きおく"},{"text":"かん","kanji":"完","hint":"おわる"},{"text":"かん","kanji":"官","hint":"やくしょ"},{"text":"くだ","kanji":"管","hint":"パイプ"},{"text":"せき","kanji":"関","hint":"かかわり"},{"text":"き","kanji":"希","hint":"のぞむ"},{"text":"き","kanji":"季","hint":"きせつ"},{"text":"き","kanji":"紀","hint":"じだい"},{"text":"よろこび","kanji":"喜","hint":"うれしい"},{"text":"はた","kanji":"旗","hint":"こっき"},{"text":"うつわ","kanji":"器","hint":"おさら"},{"text":"はた","kanji":"機","hint":"きかい"},{"text":"ぎ","kanji":"議","hint":"はなしあう"},{"text":"もとめる","kanji":"求","hint":"さがす"},{"text":"なく","kanji":"泣","hint":"なみだ"},{"text":"すくう","kanji":"救","hint":"たすける"},{"text":"たまう","kanji":"給","hint":"あげる"},{"text":"あげる","kanji":"挙","hint":"てをあげる"},{"text":"りょう","kanji":"漁","hint":"さかなとる"},{"text":"とも","kanji":"共","hint":"いっしょに"},{"text":"きょう","kanji":"協","hint":"たすけあう"},{"text":"かがみ","kanji":"鏡","hint":"うつす"},{"text":"くん","kanji":"訓","hint":"おしえる"},{"text":"ぐん","kanji":"軍","hint":"ぐんたい"},{"text":"ぐん","kanji":"郡","hint":"ちいき"},{"text":"かた","kanji":"型","hint":"かたち"},{"text":"けい","kanji":"景","hint":"けしき"},{"text":"かける","kanji":"欠","hint":"たりない"},{"text":"むすぶ","kanji":"結","hint":"つなぐ"},{"text":"たてる","kanji":"建","hint":"たてもの"},{"text":"かたい","kanji":"固","hint":"しっかり"},{"text":"こう","kanji":"功","hint":"せいこう"},{"text":"こう","kanji":"候","hint":"きこう"},{"text":"こう","kanji":"航","hint":"ふね"},{"text":"つげる","kanji":"告","hint":"しらせる"},{"text":"さ","kanji":"差","hint":"ちがい"},{"text":"な","kanji":"菜","hint":"やさい"},{"text":"もっとも","kanji":"最","hint":"いちばん"},{"text":"ざい","kanji":"材","hint":"き"},{"text":"さく","kanji":"昨","hint":"きのう"},{"text":"ふだ","kanji":"札","hint":"カード"},{"text":"まと","kanji":"的","hint":"あてる"},{"text":"さん","kanji":"参","hint":"くわわる"},{"text":"うむ","kanji":"産","hint":"うまれる"},{"text":"ちる","kanji":"散","hint":"ばらばら"},{"text":"のこり","kanji":"残","hint":"あまった"},{"text":"し","kanji":"氏","hint":"なまえ"},{"text":"し","kanji":"史","hint":"むかし"},{"text":"し","kanji":"司","hint":"まとめる"},{"text":"こころみる","kanji":"試","hint":"テスト"},{"text":"じ","kanji":"児","hint":"こども"},{"text":"なおる","kanji":"治","hint":"びょうき"},{"text":"うしなう","kanji":"失","hint":"なくす"},{"text":"かりる","kanji":"借","hint":"おかね"},{"text":"たね","kanji":"種","hint":"はな"},{"text":"まわり","kanji":"周","hint":"ぐるり"},{"text":"いわい","kanji":"祝","hint":"めでたい"},{"text":"じゅん","kanji":"順","hint":"ばんごう"},{"text":"はじめ","kanji":"初","hint":"さいしょ"},{"text":"まつ","kanji":"松","hint":"き"},{"text":"わらう","kanji":"笑","hint":"あはは"},{"text":"うたう","kanji":"唱","hint":"こえ"},{"text":"やく","kanji":"焼","hint":"ひ"},{"text":"ぞう","kanji":"象","hint":"どうぶつ"},{"text":"てらす","kanji":"照","hint":"ひかり"},{"text":"しん","kanji":"信","hint":"まこと"},{"text":"なる","kanji":"成","hint":"できる"},{"text":"はぶく","kanji":"省","hint":"へらす"},{"text":"きよい","kanji":"清","hint":"きれい"},{"text":"しずか","kanji":"静","hint":"しずか"},{"text":"せき","kanji":"席","hint":"すわる"},{"text":"おる","kanji":"折","hint":"まげる"},{"text":"ふし","kanji":"節","hint":"きせつ"},{"text":"せつ","kanji":"説","hint":"おしえる"},{"text":"いくさ","kanji":"戦","hint":"たたかう"},{"text":"あらそう","kanji":"争","hint":"ケンカ"},{"text":"まご","kanji":"孫","hint":"こどものこ"},{"text":"たつ","kanji":"達","hint":"つく"},{"text":"ひとつ","kanji":"単","hint":"１つ"},{"text":"おく","kanji":"置","hint":"ばしょ"},{"text":"なか","kanji":"仲","hint":"なかよし"},{"text":"おく","kanji":"億","hint":"かず"},{"text":"かい","kanji":"械","hint":"キカイ"},{"text":"みる","kanji":"観","hint":"けしき"},{"text":"ねがい","kanji":"願","hint":"いのり"},{"text":"きわみ","kanji":"極","hint":"はて"},{"text":"きそう","kanji":"競","hint":"あらそう"},{"text":"みち","kanji":"径","hint":"ちょっけい"},{"text":"すこやか","kanji":"健","hint":"げんき"},{"text":"ためす","kanji":"験","hint":"テスト"},{"text":"こう","kanji":"康","hint":"けんこう"},{"text":"する","kanji":"刷","hint":"プリント"},{"text":"さつ","kanji":"察","hint":"みる"},{"text":"やめる","kanji":"辞","hint":"ことば"},{"text":"しょう","kanji":"賞","hint":"もらう"},{"text":"しん","kanji":"臣","hint":"えらい"},{"text":"つむ","kanji":"積","hint":"かさねる"},{"text":"あさい","kanji":"浅","hint":"みず"},{"text":"えらぶ","kanji":"選","hint":"きめる"},{"text":"しかり","kanji":"然","hint":"しぜん"},{"text":"くら","kanji":"倉","hint":"しまう"},{"text":"す","kanji":"巣","hint":"とり"},{"text":"たば","kanji":"束","hint":"まとめる"},{"text":"がわ","kanji":"側","hint":"よこ"},{"text":"つづく","kanji":"続","hint":"おわらない"},{"text":"そつ","kanji":"卒","hint":"おわる"},{"text":"おび","kanji":"帯","hint":"こしに"},{"text":"たい","kanji":"隊","hint":"グループ"}],
+      len2: [{"text":"せつめい","kanji":"説明","hint":"おしえる"},{"text":"きょうりょく","kanji":"協力","hint":"たすけあう"},{"text":"どりょく","kanji":"努力","hint":"がんばる"},{"text":"もくひょう","kanji":"目標","hint":"あて"},{"text":"やくそく","kanji":"約束","hint":"まもりごと"},{"text":"めいれい","kanji":"命令","hint":"いいつける"},{"text":"広告","kanji":"広告","hint":"ぽすたー"},{"text":"えいご","kanji":"英語","hint":"ことば"},{"text":"こうがい","kanji":"公害","hint":"わるいもの"},{"text":"かくじ","kanji":"各自","hint":"それぞれ"},{"text":"けんこく","kanji":"建国","hint":"くに"},{"text":"へいし","kanji":"兵士","hint":"たたかう"},{"text":"きせつ","kanji":"季節","hint":"はるなつ"},{"text":"じしょ","kanji":"辞書","hint":"しらべる"},{"text":"りそう","kanji":"理想","hint":"ねがい"},{"text":"ゆうき","kanji":"勇気","hint":"ちから"},{"text":"きょうつう","kanji":"共通","hint":"おなじ"},{"text":"けいき","kanji":"景気","hint":"けいざい"},{"text":"けっせき","kanji":"欠席","hint":"やすむ"},{"text":"けつまつ","kanji":"結末","hint":"さいご"},{"text":"しりょう","kanji":"資料","hint":"データ"},{"text":"あいけん","kanji":"愛犬","hint":"いぬ"},{"text":"あんない","kanji":"案内","hint":"おしえる"},{"text":"いじょう","kanji":"以上","hint":"それよりうえ"},{"text":"いふく","kanji":"衣服","hint":"ふく"},{"text":"いち","kanji":"位置","hint":"ばしょ"},{"text":"しゅうい","kanji":"周囲","hint":"まわり"},{"text":"えいゆう","kanji":"英雄","hint":"ヒーロー"},{"text":"えんぶん","kanji":"塩分","hint":"しお"},{"text":"せいか","kanji":"成果","hint":"けっか"},{"text":"かだい","kanji":"課題","hint":"テーマ"},{"text":"しんめ","kanji":"新芽","hint":"あたらしいめ"},{"text":"かんかく","kanji":"感覚","hint":"かんじる"},{"text":"かんせい","kanji":"完成","hint":"できあがり"},{"text":"ちょうかん","kanji":"長官","hint":"えらいひと"},{"text":"かんり","kanji":"管理","hint":"まとめる"},{"text":"かんけい","kanji":"関係","hint":"つながり"},{"text":"きぼう","kanji":"希望","hint":"のぞみ"},{"text":"しき","kanji":"四季","hint":"はるなつあきふゆ"},{"text":"せいき","kanji":"世紀","hint":"ひゃくねん"},{"text":"こっき","kanji":"国旗","hint":"くにのはた"},{"text":"きぐ","kanji":"器具","hint":"どうぐ"},{"text":"きかい","kanji":"機会","hint":"チャンス"},{"text":"ようきゅう","kanji":"要求","hint":"もとめる"},{"text":"ごうきゅう","kanji":"号泣","hint":"なく"},{"text":"きゅうじょ","kanji":"救助","hint":"たすける"},{"text":"きゅうしょく","kanji":"給食","hint":"おひるごはん"},{"text":"きょうどう","kanji":"共同","hint":"いっしょに"},{"text":"けつごう","kanji":"結合","hint":"くっつく"},{"text":"しけん","kanji":"試験","hint":"テスト"},{"text":"こてい","kanji":"固定","hint":"うごかない"},{"text":"きこう","kanji":"気候","hint":"てんき"},{"text":"航空","kanji":"航空","hint":"そらをとぶ"},{"text":"やさい","kanji":"野菜","hint":"たべる"},{"text":"もくざい","kanji":"木材","hint":"きのいた"},{"text":"きのう","kanji":"昨日","hint":"まえのひ"},{"text":"とくべつ","kanji":"特別","hint":"ほかとちがう"},{"text":"さんか","kanji":"参加","hint":"くわわる"},{"text":"さんぽ","kanji":"散歩","hint":"あるく"},{"text":"あいこく","kanji":"愛国","hint":"くに"},{"text":"いか","kanji":"以下","hint":"それよりした"},{"text":"えいぶん","kanji":"英文","hint":"えいご"},{"text":"えいこう","kanji":"栄光","hint":"ひかり"},{"text":"えんすい","kanji":"塩水","hint":"しょっぱい"},{"text":"かさん","kanji":"加算","hint":"たす"},{"text":"かじつ","kanji":"果実","hint":"み"},{"text":"かいぎょう","kanji":"改行","hint":"つぎのぎょう"},{"text":"がいちゅう","kanji":"害虫","hint":"むし"},{"text":"だいじん","kanji":"大臣","hint":"えらいひと"},{"text":"だいき","kanji":"大喜","hint":"よろこぶ"},{"text":"きゅうしゅつ","kanji":"救出","hint":"たすける"},{"text":"きょしゅ","kanji":"挙手","hint":"てをあげる"},{"text":"ぎょせん","kanji":"漁船","hint":"さかなのふね"},{"text":"てかがみ","kanji":"手鏡","hint":"みる"},{"text":"はんけい","kanji":"半径","hint":"まるのながさ"},{"text":"おおがた","kanji":"大型","hint":"おおきい"},{"text":"けしき","kanji":"景色","hint":"みる"},{"text":"けってん","kanji":"欠点","hint":"わるいところ"},{"text":"けっせい","kanji":"結成","hint":"チーム"},{"text":"たいけん","kanji":"体験","hint":"けいけん"},{"text":"てんこう","kanji":"天候","hint":"てんき"},{"text":"こうかい","kanji":"航海","hint":"ふね"},{"text":"こくはく","kanji":"告白","hint":"つたえる"},{"text":"てんさ","kanji":"点差","hint":"ちがい"},{"text":"なふだ","kanji":"名札","hint":"なまえ"},{"text":"しゅるい","kanji":"種類","hint":"なかま"},{"text":"かんさつ","kanji":"観察","hint":"よくみる"},{"text":"きょうそう","kanji":"競争","hint":"かけっこ"},{"text":"くんれん","kanji":"訓練","hint":"れんしゅう"},{"text":"めんせき","kanji":"面積","hint":"ひろさ"},{"text":"れんぞく","kanji":"連続","hint":"つづく"},{"text":"かいぎ","kanji":"会議","hint":"はなしあう"},{"text":"そつぎょう","kanji":"卒業","hint":"おえる"},{"text":"せんきょ","kanji":"選挙","hint":"えらぶ"},{"text":"しがい","kanji":"市街","hint":"まち"},{"text":"とうひょう","kanji":"投票","hint":"えらぶ"},{"text":"しゃりん","kanji":"車輪","hint":"わ"},{"text":"くだもの","kanji":"果物","hint":"たべる"},{"text":"かもつ","kanji":"貨物","hint":"にもつ"},{"text":"ぼくじょう","kanji":"牧場","hint":"うし"},{"text":"ろうどう","kanji":"労働","hint":"はたらく"},{"text":"ちょきん","kanji":"貯金","hint":"おかね"},{"text":"いちょう","kanji":"胃腸","hint":"おなか"},{"text":"いんさつ","kanji":"印刷","hint":"プリント"},{"text":"きゅうりょう","kanji":"給料","hint":"おかね"},{"text":"ぎょぎょう","kanji":"漁業","hint":"さかな"},{"text":"きょうだい","kanji":"鏡台","hint":"かがみ"},{"text":"ぐんぶ","kanji":"郡部","hint":"ちいき"},{"text":"えいよう","kanji":"栄養","hint":"からだにいい"},{"text":"ちょっけい","kanji":"直径","hint":"まるのながさ"},{"text":"てんけい","kanji":"典型","hint":"パターン"},{"text":"けんぜん","kanji":"健全","hint":"けんこう"},{"text":"さべつ","kanji":"差別","hint":"わける"},{"text":"おくまん","kanji":"億万","hint":"かず"},{"text":"まちかど","kanji":"街角","hint":"かど"},{"text":"せきしょ","kanji":"関所","hint":"むかしのばしょ"},{"text":"がんぼう","kanji":"願望","hint":"ねがい"}]
+    };
+
+    const DB_ONLY5 = {
+      len1: [{"text":"さくら","kanji":"桜","hint":"はるにはな"},{"text":"ゆめ","kanji":"夢","hint":"ねているとき"},{"text":"えだ","kanji":"枝","hint":"きのいちぶ"},{"text":"つま","kanji":"妻","hint":"おくさん"},{"text":"した","kanji":"舌","hint":"あじわう"},{"text":"あまる","kanji":"余","hint":"のこる"},{"text":"もと","kanji":"基","hint":"きほん"},{"text":"わざ","kanji":"技","hint":"テクニック"},{"text":"こころざし","kanji":"志","hint":"もくひょう"},{"text":"かう","kanji":"飼","hint":"ペット"},{"text":"しめす","kanji":"示","hint":"みせる"},{"text":"にる","kanji":"似","hint":"そっくり"},{"text":"ことわる","kanji":"断","hint":"やめる"},{"text":"はる","kanji":"張","hint":"ひっぱる"},{"text":"やぶる","kanji":"破","hint":"こわす"},{"text":"くらべる","kanji":"比","hint":"どっちが"},{"text":"あつい","kanji":"厚","hint":"うすくない"},{"text":"まじる","kanji":"混","hint":"まざる"},{"text":"ふたたび","kanji":"再","hint":"もういちど"},{"text":"とる","kanji":"採","hint":"あつめる"},{"text":"たもつ","kanji":"保","hint":"キープする"},{"text":"ふせぐ","kanji":"防","hint":"まもる"},{"text":"いれる","kanji":"容","hint":"なかみ"},{"text":"はぶく","kanji":"略","hint":"みじかく"},{"text":"あかがね","kanji":"銅","hint":"メダル"},{"text":"あつ","kanji":"圧","hint":"おす"},{"text":"うつる","kanji":"移","hint":"ばしょをかえる"},{"text":"もと","kanji":"因","hint":"げんいん"},{"text":"ながい","kanji":"永","hint":"いつまでも"},{"text":"いとなむ","kanji":"営","hint":"おみせをやる"},{"text":"やさしい","kanji":"易","hint":"かんたん"},{"text":"えき","kanji":"益","hint":"とくをする"},{"text":"えき","kanji":"液","hint":"しる"},{"text":"えん","kanji":"演","hint":"げきをやる"},{"text":"こたえる","kanji":"応","hint":"へんじ"},{"text":"ゆく","kanji":"往","hint":"いく"},{"text":"おん","kanji":"恩","hint":"めぐみ"},{"text":"か","kanji":"可","hint":"よい"},{"text":"あたい","kanji":"価","hint":"ねだん"},{"text":"かわ","kanji":"河","hint":"おおきなかわ"},{"text":"すぎる","kanji":"過","hint":"とおる"},{"text":"が","kanji":"賀","hint":"いわう"},{"text":"こころよい","kanji":"快","hint":"きもちいい"},{"text":"とく","kanji":"解","hint":"わかる"},{"text":"かく","kanji":"格","hint":"ルール"},{"text":"たしか","kanji":"確","hint":"まちがいない"},{"text":"かん","kanji":"刊","hint":"ほんをだす"},{"text":"め","kanji":"眼","hint":"みる"},{"text":"よる","kanji":"寄","hint":"ちかづく"},{"text":"き","kanji":"規","hint":"きまり"},{"text":"ぎ","kanji":"義","hint":"ただしい"},{"text":"さかさ","kanji":"逆","hint":"はんたい"},{"text":"ひさしい","kanji":"久","hint":"ながいあいだ"},{"text":"ふるい","kanji":"旧","hint":"むかしの"},{"text":"いる","kanji":"居","hint":"そこにいる"},{"text":"ひとしい","kanji":"均","hint":"おなじ"},{"text":"きん","kanji":"禁","hint":"だめ"},{"text":"く","kanji":"句","hint":"ことば"},{"text":"へる","kanji":"経","hint":"たつ"},{"text":"けん","kanji":"件","hint":"ことがら"},{"text":"けん","kanji":"券","hint":"チケット"},{"text":"かぎる","kanji":"限","hint":"ここまで"},{"text":"あらわれる","kanji":"現","hint":"いま"},{"text":"へる","kanji":"減","hint":"少なくなる"},{"text":"ゆえ","kanji":"故","hint":"わけ"},{"text":"こ","kanji":"個","hint":"ひとつ"},{"text":"きく","kanji":"効","hint":"ききめ"},{"text":"かまえる","kanji":"構","hint":"くみたてる"},{"text":"さ","kanji":"査","hint":"しらべる"},{"text":"ある","kanji":"在","hint":"そこに"},{"text":"ぜに","kanji":"銭","hint":"おかね"},{"text":"てき","kanji":"敵","hint":"あいて"},{"text":"たわら","kanji":"俵","hint":"こめをいれる"},{"text":"とむ","kanji":"富","hint":"おかねもち"},{"text":"はか","kanji":"墓","hint":"おはかまいり"},{"text":"わた","kanji":"綿","hint":"ふわふわ"},{"text":"とどまる","kanji":"留","hint":"そこにする"},{"text":"むれ","kanji":"群","hint":"たくさん"},{"text":"きわめる","kanji":"極","hint":"いちばん"},{"text":"ゆるす","kanji":"許","hint":"ＯＫする"},{"text":"さかい","kanji":"境","hint":"ここから先"},{"text":"つみ","kanji":"罪","hint":"わるいこと"},{"text":"きずく","kanji":"築","hint":"たてる"},{"text":"こえる","kanji":"肥","hint":"ふとる"},{"text":"そなえる","kanji":"備","hint":"じゅんび"},{"text":"まもる","kanji":"護","hint":"まもる"},{"text":"たがやす","kanji":"耕","hint":"はたけ"},{"text":"わざわい","kanji":"災","hint":"じしんなど"},{"text":"すむ","kanji":"済","hint":"おわる"},{"text":"ほとけ","kanji":"仏","hint":"ほとけさま"},{"text":"あむ","kanji":"編","hint":"けいと"},{"text":"むくいる","kanji":"報","hint":"おしらせ"},{"text":"ゆたか","kanji":"豊","hint":"たくさん"},{"text":"あばれる","kanji":"暴","hint":"あばれんぼう"},{"text":"つとめる","kanji":"務","hint":"しごと"},{"text":"みちびく","kanji":"導","hint":"あんない"},{"text":"すべる","kanji":"統","hint":"まとめる"},{"text":"あきなう","kanji":"貿","hint":"ぼうえき"},{"text":"たま","kanji":"偶","hint":"ぐうぜん"},{"text":"おぎなう","kanji":"補","hint":"たす"},{"text":"のぞむ","kanji":"臨","hint":"むかう"},{"text":"えい","kanji":"衛","hint":"まもる"},{"text":"ひたい","kanji":"額","hint":"おでこ"},{"text":"みき","kanji":"幹","hint":"きのまん中"},{"text":"なれる","kanji":"慣","hint":"いつもやる"},{"text":"いさぎよい","kanji":"潔","hint":"きれい"},{"text":"けわしい","kanji":"険","hint":"あぶない"},{"text":"けん","kanji":"検","hint":"しらべる"},{"text":"こう","kanji":"鉱","hint":"いし"},{"text":"おこる","kanji":"興","hint":"おもしろい"},{"text":"こう","kanji":"講","hint":"とく"},{"text":"きわ","kanji":"際","hint":"そのとき"},{"text":"たから","kanji":"財","hint":"おかね"},{"text":"まじる","kanji":"雑","hint":"いろいろ"},{"text":"すっぱい","kanji":"酸","hint":"あじ"},{"text":"さん","kanji":"賛","hint":"たすける"}],
+      len2: [{"text":"えきたい","kanji":"液体","hint":"みずみたい"},{"text":"かこ","kanji":"過去","hint":"むかし"},{"text":"きほん","kanji":"基本","hint":"だいじなこと"},{"text":"きゅうじつ","kanji":"休日","hint":"おやすみ"},{"text":"きんし","kanji":"禁止","hint":"ダメ"},{"text":"せいけつ","kanji":"清潔","hint":"きれい"},{"text":"じょうけん","kanji":"条件","hint":"ルール"},{"text":"けんさ","kanji":"検査","hint":"しらべる"},{"text":"げんかい","kanji":"限界","hint":"ここまで"},{"text":"げんざい","kanji":"現在","hint":"いま"},{"text":"こじん","kanji":"個人","hint":"ひとり"},{"text":"ほご","kanji":"保護","hint":"まもる"},{"text":"こうか","kanji":"効果","hint":"ききめ"},{"text":"さいしゅう","kanji":"最終","hint":"いちばんさいご"},{"text":"さんせい","kanji":"賛成","hint":"いいとおもう"},{"text":"しつもん","kanji":"質問","hint":"きく"},{"text":"じゅぎょう","kanji":"授業","hint":"べんきょう"},{"text":"じゅんび","kanji":"準備","hint":"ようい"},{"text":"しょうめい","kanji":"証明","hint":"あかしか"},{"text":"ぜったい","kanji":"絶対","hint":"かならず"},{"text":"ぞうか","kanji":"増加","hint":"ふえる"},{"text":"ていきょう","kanji":"提供","hint":"あげる"},{"text":"ていど","kanji":"程度","hint":"くらい"},{"text":"ひじょう","kanji":"非常","hint":"ふつうじゃない"},{"text":"ほうこく","kanji":"報告","hint":"しらせる"},{"text":"むちゅう","kanji":"夢中","hint":"のめりこむ"},{"text":"げんいん","kanji":"原因","hint":"理由"},{"text":"えいえん","kanji":"永遠","hint":"いつまでも"},{"text":"えいぎょう","kanji":"営業","hint":"おみせ"},{"text":"ようい","kanji":"容易","hint":"かんたん"},{"text":"りえき","kanji":"利益","hint":"もうけ"},{"text":"おうふく","kanji":"往復","hint":"いってかえる"},{"text":"かのう","kanji":"可能","hint":"できる"},{"text":"かち","kanji":"価値","hint":"ねうち"},{"text":"かせん","kanji":"河川","hint":"かわ"},{"text":"つうか","kanji":"通過","hint":"とおりすぎる"},{"text":"しゅくが","kanji":"祝賀","hint":"おわい"},{"text":"かいそく","kanji":"快速","hint":"はやい"},{"text":"かいとう","kanji":"解答","hint":"こたえ"},{"text":"ごうかく","kanji":"合格","hint":"うかる"},{"text":"ちょうかん","kanji":"朝刊","hint":"あさの新聞"},{"text":"めがね","kanji":"眼鏡","hint":"みる"},{"text":"きふ","kanji":"寄付","hint":"おかねをあげる"},{"text":"せいぎ","kanji":"正義","hint":"ただしい"},{"text":"えいきゅう","kanji":"永久","hint":"ずっと"},{"text":"きゅうさく","kanji":"旧作","hint":"むかしのさくひん"},{"text":"へいきん","kanji":"平均","hint":"ならす"},{"text":"きんえん","kanji":"禁煙","hint":"タバコだめ"},{"text":"はいく","kanji":"俳句","hint":"五七五"},{"text":"けいけん","kanji":"経験","hint":"やってみる"},{"text":"じけん","kanji":"事件","hint":"あぶないこと"},{"text":"きけん","kanji":"危険","hint":"あぶない"},{"text":"きげん","kanji":"期限","hint":"いつまで"},{"text":"げんきん","kanji":"現金","hint":"おかね"},{"text":"かげん","kanji":"加減","hint":"ちょうせつ"},{"text":"じこ","kanji":"事故","hint":"ぶつかる"},{"text":"こすう","kanji":"個数","hint":"かず"},{"text":"ゆうこう","kanji":"有効","hint":"つかえる"},{"text":"きょうみ","kanji":"興味","hint":"きになる"},{"text":"ちょうさ","kanji":"調査","hint":"しらべる"},{"text":"こうさい","kanji":"交際","hint":"つきあう"},{"text":"そんざい","kanji":"存在","hint":"あること"},{"text":"ざいさん","kanji":"財産","hint":"おかねなど"},{"text":"ししゅつ","kanji":"支出","hint":"はらうおかね"},{"text":"きょうし","kanji":"教師","hint":"先生"},{"text":"しきん","kanji":"資金","hint":"おかね"},{"text":"ちしき","kanji":"知識","hint":"しっていること"},{"text":"ぶっしつ","kanji":"物質","hint":"もの"},{"text":"こうしゃ","kanji":"校舎","hint":"学校のたてもの"},{"text":"かんしゃ","kanji":"感謝","hint":"ありがとう"}]
+    };
+
+    // ==========================================
+    // Classes
+    // ==========================================
+
+    class SoundManager {
+      constructor() { this.audioCtx = null; }
+      init() { if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (this.audioCtx.state === 'suspended') this.audioCtx.resume(); }
+      play(freq, type, duration, vol) { this.init(); const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain(); osc.type = type; osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime); gain.gain.setValueAtTime(vol, this.audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + duration); osc.connect(gain); gain.connect(this.audioCtx.destination); osc.start(); osc.stop(this.audioCtx.currentTime + duration); }
+      playTap() { this.play(800, 'sine', 0.05, 0.1); }
+      playPlace() { this.init(); const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain(); osc.type = 'triangle'; osc.frequency.setValueAtTime(150, this.audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(40, this.audioCtx.currentTime + 0.1); gain.gain.setValueAtTime(0.4, this.audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.1); osc.connect(gain); gain.connect(this.audioCtx.destination); osc.start(); osc.stop(this.audioCtx.currentTime + 0.1); }
+      playFlip() { this.init(); const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain(); osc.type = 'sine'; osc.frequency.setValueAtTime(300, this.audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(600, this.audioCtx.currentTime + 0.2); gain.gain.setValueAtTime(0, this.audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.15, this.audioCtx.currentTime + 0.1); gain.gain.linearRampToValueAtTime(0, this.audioCtx.currentTime + 0.2); osc.connect(gain); gain.connect(this.audioCtx.destination); osc.start(); osc.stop(this.audioCtx.currentTime + 0.2); }
+      playPass() { this.play(440, 'triangle', 0.2, 0.1); }
+      playError() { this.play(150, 'sawtooth', 0.3, 0.2); }
+      playWin() { const notes = [523, 659, 783, 1046]; notes.forEach((f, i) => { setTimeout(() => this.play(f, 'sine', 0.5, 0.15), i * 150); }); }
+    }
+
+    class DataModel {
+      constructor() {
+        this.customWords = [];
+        this.currentLength = "2";
+        this.currentGrade = "only5";
+        this.currentWords = [];
+        this.loadFromStorage();
+      }
+
+      loadFromStorage() {
+        const saved = localStorage.getItem('othello_custom_words');
+        if (saved) {
+          try {
+            this.customWords = JSON.parse(saved);
+          } catch (e) {
+            console.error('Failed to parse saved custom words');
+            localStorage.removeItem('othello_custom_words');
+          }
+        }
+      }
+
+      parseCSV(buffer) {
+        let text = "";
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); } 
+        catch (err) { text = new TextDecoder('shift_jis').decode(buffer); }
+        
+        const lines = text.split(/\r?\n/);
+        let newCustomWords = [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          // 堅牢なCSVパース
+          const parts = splitCSV(line);
+          
+          if (parts.length >= 2 && parts[0] && parts[1]) {
+            if (parts[0] === 'ひらがな' || parts[0] === 'テキスト') continue;
+            newCustomWords.push({ text: parts[0], kanji: parts[1], hint: parts[2] || "" });
+          }
+        }
+        if (newCustomWords.length < 60) throw new Error(`データが不足しています（現在 ${newCustomWords.length}個）。最低60個必要です。`);
+        this.customWords = newCustomWords;
+        this.currentGrade = 'custom';
+        
+        localStorage.setItem('othello_custom_words', JSON.stringify(this.customWords));
+      }
+
+      generateWords() {
+        let list = [];
+        if (this.currentGrade === 'custom') list = this.customWords;
+        else {
+          const db = (this.currentGrade === "upTo3" ? DB_UPTO3 : (this.currentGrade === "only4" ? DB_ONLY4 : DB_ONLY5));
+          list = (this.currentLength === "1" ? db.len1 : db.len2);
+        }
+        const hardCount = Math.min(20, Math.floor(list.length / 4));
+        const normalList = list.slice(0, list.length - hardCount);
+        const hardList = list.slice(list.length - hardCount);
+        let normalPool = shuffleArray([...normalList]);
+        let hardPool = shuffleArray([...hardList]);
+        
+        while (hardPool.length < 4) hardPool = hardPool.concat(shuffleArray([...hardList]));
+        while (normalPool.length < 56) normalPool = normalPool.concat(shuffleArray([...normalList]));
+        
+        let selectedHard = hardPool.slice(0, 4);
+        let selectedNormal = normalPool.slice(0, 56);
+        let words = Array(64).fill(null);
+        const corners = [0, 7, 56, 63], centers = [27, 28, 35, 36];
+        let normalIdx = 0, hardIdx = 0;
+        
+        for (let i = 0; i < 64; i++) {
+          if (centers.includes(i)) words[i] = { text: "", kanji: "", hint: "" };
+          else if (corners.includes(i)) words[i] = selectedHard[hardIdx++];
+          else words[i] = selectedNormal[normalIdx++];
+        }
+        this.currentWords = words;
+        return words;
+      }
+    }
+
+    class BoardModel {
+      constructor() {
+        this.directions = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+        this.reset();
+      }
+
+      reset() {
+        this.board = Array(8).fill(0).map(() => Array(8).fill(0));
+        this.board[3][3] = 1; this.board[3][4] = 2; this.board[4][3] = 2; this.board[4][4] = 1;
+        this.currentPlayer = 1;
+        this.isGameOver = false;
+        this.showingKanji = null; // {r, c}
+        this.isGameStarted = false;
+        this.passedHistory = new Set();
+        this.historyStack = [];
+      }
+
+      saveState() {
+        this.historyStack.push({ board: JSON.parse(JSON.stringify(this.board)), currentPlayer: this.currentPlayer, passedHistory: Array.from(this.passedHistory) });
+      }
+
+      restoreState() {
+        if (this.historyStack.length === 0) return false;
+        const state = this.historyStack.pop();
+        this.board = state.board;
+        this.currentPlayer = state.currentPlayer;
+        this.passedHistory = new Set(state.passedHistory);
+        this.isGameOver = false;
+        this.showingKanji = null;
+        if (this.historyStack.length === 0) this.isGameStarted = false;
+        return true;
+      }
+
+      getScores() {
+        let s1 = 0, s2 = 0;
+        this.board.forEach(r => r.forEach(v => { if(v===1)s1++; if(v===2)s2++; }));
+        return {s1, s2};
+      }
+
+      getFlippable(r, c, p) {
+        if (this.board[r][c] !== 0) return [];
+        let flips = [];
+        const opp = p === 1 ? 2 : 1;
+        for (let [dr, dc] of this.directions) {
+          let nr = r + dr, nc = c + dc, path = [];
+          while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && this.board[nr][nc] === opp) {
+            path.push({r: nr, c: nc}); nr += dr; nc += dc;
+          }
+          if (path.length > 0 && nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && this.board[nr][nc] === p) flips = flips.concat(path);
+        }
+        return flips;
+      }
+
+      hasValidMoves(p) {
+        for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (this.getFlippable(r, c, p).length > 0) return true;
+        return false;
+      }
+    }
+
+    class GameView {
+      constructor() {
+        this.boardEl = document.getElementById('board');
+        this.score1El = document.getElementById('score-1');
+        this.score2El = document.getElementById('score-2');
+        this.turnInd = document.getElementById('turn-indicator');
+        this.p1Box = document.getElementById('p1-box');
+        this.p2Box = document.getElementById('p2-box');
+        this.controlPanel = document.getElementById('control-panel');
+        this.boardOverlay = document.getElementById('board-overlay');
+        this.btnUndo = document.getElementById('btn-undo');
+        this.isAnimating = false;
+      }
+
+      bindEvents(controller) {
+        document.getElementById('btn-import-csv').onclick = () => controller.handleImportClick();
+        document.getElementById('file-upload').onchange = (e) => controller.handleFileChange(e);
+        this.btnUndo.onclick = () => controller.handleUndo();
+        document.getElementById('btn-pass').onclick = () => controller.handlePass();
+        document.getElementById('btn-reset').onclick = () => controller.showConfirm('reset');
+        document.getElementById('btn-shuffle').onclick = () => controller.showConfirm('shuffle');
+        document.getElementById('btn-restart').onclick = () => controller.handleRestart();
+        document.getElementById('select-length').onchange = (e) => controller.handleSettingsChange('length', e.target.value);
+        document.getElementById('select-grade').onchange = (e) => controller.handleSettingsChange('grade', e.target.value);
+        
+        // Modals
+        document.getElementById('btn-confirm-no').onclick = () => controller.closeConfirm();
+        document.getElementById('btn-confirm-yes').onclick = () => controller.executeConfirm();
+        document.getElementById('btn-csv-help').onclick = () => controller.showModal('modal-csv-help', 'csv-help-content');
+        document.getElementById('btn-close-csv-help').onclick = () => controller.closeModal('modal-csv-help');
+        document.getElementById('btn-help').onclick = () => controller.showModal('modal-help', 'help-content');
+        document.getElementById('btn-close-help').onclick = () => controller.closeModal('modal-help');
+        document.getElementById('btn-close-clear').onclick = () => { controller.sound.playTap(); document.getElementById('modal-clear').classList.add('hidden'); };
+      }
+
+      initSettingsUI(hasCustomData) {
+        const optCustom = document.getElementById('opt-custom');
+        if (hasCustomData) {
+          optCustom.disabled = false;
+        }
+      }
+
+      setUILock(locked) {
+        this.isAnimating = locked;
+        if (locked) { this.controlPanel.classList.add('ui-locked'); this.boardOverlay.classList.remove('hidden'); } 
+        else { this.controlPanel.classList.remove('ui-locked'); this.boardOverlay.classList.add('hidden'); }
+      }
+
+      setSettingsLock(locked) {
+        const selLen = document.getElementById('select-length'), selGrd = document.getElementById('select-grade'), btnImport = document.getElementById('btn-import-csv'), panel = document.getElementById('settings-panel'), lockIcon = document.getElementById('lock-icon');
+        selLen.disabled = locked; selGrd.disabled = locked; btnImport.disabled = locked;
+        if (locked) { panel.classList.add('opacity-80', 'grayscale-[0.4]'); lockIcon.classList.remove('opacity-0'); } 
+        else { panel.classList.remove('opacity-80', 'grayscale-[0.4]'); lockIcon.classList.add('opacity-0'); }
+      }
+
+      updateUndoButton(canUndo) {
+        if (canUndo) { this.btnUndo.disabled = false; this.btnUndo.classList.remove('opacity-50', 'cursor-not-allowed'); } 
+        else { this.btnUndo.disabled = true; this.btnUndo.classList.add('opacity-50', 'cursor-not-allowed'); }
+      }
+
+      updateUI(state) {
+        const {s1, s2} = state.getScores();
+        this.score1El.innerText = s1; this.score2El.innerText = s2;
+        document.body.classList.remove('bg-slate-200', 'bg-sky-100', 'bg-pink-100');
+        if (state.currentPlayer === 1) {
+          document.body.classList.add('bg-sky-100');
+          this.turnInd.innerText = "水色のターン！";
+          this.turnInd.className = "text-xl font-black py-2.5 rounded-full text-center bg-sky-300 text-gray-900 border-4 border-white shadow-lg animate-bounce-subtle scale-105 transform transition-all duration-300";
+          this.p1Box.classList.add('active-player-card'); this.p2Box.classList.remove('active-player-card');
+        } else {
+          document.body.classList.add('bg-pink-100');
+          this.turnInd.innerText = "ピンクのターン！";
+          this.turnInd.className = "text-xl font-black py-2.5 rounded-full text-center bg-pink-400 text-gray-900 border-4 border-white shadow-lg animate-bounce-subtle scale-105 transform transition-all duration-300";
+          this.p2Box.classList.add('active-player-card'); this.p1Box.classList.remove('active-player-card');
+        }
+      }
+
+      initBoardDOM(words, cellClickHandler) {
+        this.boardEl.innerHTML = '';
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const word = words[r * 8 + c], cell = document.createElement('div');
+            cell.className = 'relative w-full h-full cell-flip-container cursor-pointer';
+            cell.onclick = () => cellClickHandler(r, c);
+            const inner = document.createElement('div'); inner.id = `cell-inner-${r}-${c}`; inner.className = 'cell-flip-inner absolute inset-0 w-full h-full border border-emerald-950 rounded-sm shadow-inner bg-emerald-700';
+            const f = document.createElement('div'); f.id = `face-front-${r}-${c}`; f.className = 'cell-flip-face font-kyokasho absolute inset-0 bg-emerald-700 flex flex-col items-center justify-center p-1 overflow-hidden rounded-sm';
+            const b = document.createElement('div'); b.className = 'cell-flip-face font-kyokasho cell-flip-back absolute inset-0 bg-emerald-600 flex flex-col items-center justify-center p-1 overflow-hidden rounded-sm';
+            if (word && word.text) {
+              const t = document.createElement('div'); const charLen = word.text.length;
+              t.style.fontSize = (charLen === 1) ? '48cqw' : (charLen === 2) ? '34cqw' : (charLen === 3) ? '26cqw' : '20cqw';
+              t.className = 'text-white font-black text-center leading-none drop-shadow-md w-full break-all px-0.5'; t.innerText = word.text; f.appendChild(t);
+              const h = document.createElement('div'); h.className = 'text-yellow-200 font-bold text-[7px] md:text-[10px] text-center leading-tight mt-1 w-full line-clamp-2'; h.innerText = word.hint; f.appendChild(h);
+              const k = document.createElement('div'); k.style.fontSize = (word.kanji.length === 1) ? '50cqw' : '30cqw';
+              k.className = 'text-white font-black text-center drop-shadow-lg w-full'; k.innerText = word.kanji; b.appendChild(k);
+            }
+            const sC = document.createElement('div'); sC.id = `s-cont-${r}-${c}`; sC.className = 'absolute inset-1 hidden z-30 pointer-events-none';
+            const s = document.createElement('div'); s.id = `stone-${r}-${c}`; s.className = 'stone w-full h-full rounded-full shadow-lg relative';
+            const sf1 = document.createElement('div'); sf1.className = 'stone-face absolute inset-0 rounded-full bg-sky-300 border-2 border-sky-400 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.3)]';
+            const sf2 = document.createElement('div'); sf2.className = 'stone-face stone-back absolute inset-0 rounded-full bg-pink-400 border-2 border-pink-500 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.3)]';
+            s.appendChild(sf1); s.appendChild(sf2); sC.appendChild(s);
+            const mWrap = document.createElement('div'); mWrap.id = `marker-wrap-${r}-${c}`; mWrap.className = 'absolute top-0.5 right-0.5 w-[15%] aspect-square hidden z-20 pointer-events-none rounded-full';
+            const dot = document.createElement('div'); dot.className = 'place-marker'; dot.id = `dot-${r}-${c}`; mWrap.appendChild(dot);
+            inner.appendChild(f); inner.appendChild(b); cell.appendChild(inner); cell.appendChild(sC); cell.appendChild(mWrap); this.boardEl.appendChild(cell);
+          }
+        }
+      }
+
+      updateBoardState(state, showHints = true) {
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const val = state.board[r][c], inner = document.getElementById(`cell-inner-${r}-${c}`), sC = document.getElementById(`s-cont-${r}-${c}`), front = document.getElementById(`face-front-${r}-${c}`), mWrap = document.getElementById(`marker-wrap-${r}-${c}`), dot = document.getElementById(`dot-${r}-${c}`);
+            const isShowingThis = state.showingKanji && state.showingKanji.r === r && state.showingKanji.c === c;
+            const canMove = showHints && !state.isGameOver && state.getFlippable(r, c, state.currentPlayer).length > 0;
+            
+            if (isShowingThis) { inner.classList.add('is-flipped', 'showing-highlight'); } 
+            else { inner.classList.remove('is-flipped', 'showing-highlight'); }
+            
+            front.classList.remove('can-move-p1', 'can-move-p2');
+            if (val === 0 && canMove && !state.showingKanji) { 
+              front.classList.add(state.currentPlayer === 1 ? 'can-move-p1' : 'can-move-p2'); 
+              mWrap.classList.remove('hidden'); dot.style.backgroundColor = state.currentPlayer === 1 ? '#38bdf8' : '#f472b6'; 
+            } else { mWrap.classList.add('hidden'); }
+            
+            if (val !== 0) { 
+              sC.classList.remove('hidden'); const stone = document.getElementById(`stone-${r}-${c}`); 
+              if(val === 1) stone.classList.remove('flipped'); else stone.classList.add('flipped'); 
+            } else { sC.classList.add('hidden'); }
+          }
+        }
+      }
+
+      showGameOverModal(state, words) {
+        const {s1, s2} = state.getScores();
+        const wt = document.getElementById('winner-text'); 
+        wt.innerText = s1 > s2 ? "水色の勝ち！🎉" : (s2 > s1 ? "ピンクの勝ち！🎉" : "ひきわけ！🤝");
+        wt.className = `text-2xl font-bold p-4 rounded-2xl border-4 flex-shrink-0 ${s1>s2?'bg-sky-50 border-sky-400 text-sky-800':'bg-pink-50 border-pink-400 text-pink-800'}`;
+        
+        let p1Words = [], p2Words = [], unobtainedWords = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) { 
+            const val = state.board[r][c], word = words[r * 8 + c]; 
+            if (!word || !word.text) continue; 
+            if (val === 1) p1Words.push(word); else if (val === 2) p2Words.push(word); else unobtainedWords.push(word); 
+          }
+        }
+        let reviewSet = new Set([...unobtainedWords, ...state.passedHistory]);
+        const createHTML = (w) => `<div class="px-2 py-1.5 border-b border-gray-200/50 flex justify-between items-end gap-2 bg-white/50 rounded hover:bg-white transition-colors"><span class="text-xl font-bold">${w.kanji}</span><span class="text-xs text-gray-500 font-medium pb-0.5">${w.text}</span></div>`;
+        document.getElementById('p1-list').innerHTML = p1Words.map(createHTML).join('');
+        document.getElementById('p2-list').innerHTML = p2Words.map(createHTML).join('');
+        document.getElementById('pass-list').innerHTML = reviewSet.size === 0 ? `<div class="p-4 text-center text-sm text-gray-400">パスされた漢字はありません。<br>すばらしい！</div>` : Array.from(reviewSet).map(createHTML).join('');
+        
+        document.getElementById('modal-clear').classList.remove('hidden');
+        setTimeout(() => document.getElementById('clear-content').classList.add('scale-100'), 50);
+      }
+
+      async showPassModal() {
+        const modal = document.getElementById('modal-pass'), content = document.getElementById('pass-content');
+        modal.classList.remove('hidden'); requestAnimationFrame(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-90'); });
+        await new Promise(res => setTimeout(res, 1500));
+        modal.classList.add('opacity-0'); content.classList.add('scale-90');
+        await new Promise(res => setTimeout(res, 300)); modal.classList.add('hidden');
+      }
+
+      showConfirmModal(action) {
+        const modal = document.getElementById('modal-confirm'), content = document.getElementById('confirm-content'), msg = document.getElementById('confirm-message'); 
+        msg.innerHTML = action === 'reset' ? "いままでの 記録が きえます。<br>ほんとうに 最初から やり直しますか？" : "いままでの 記録が きえます。<br>ほんとうに 問題を 変えますか？"; 
+        modal.classList.remove('hidden'); requestAnimationFrame(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-90'); }); 
+      }
+      
+      closeConfirmModal() {
+        const modal = document.getElementById('modal-confirm'), content = document.getElementById('confirm-content'); 
+        modal.classList.add('opacity-0'); content.classList.add('scale-90'); 
+        setTimeout(() => { modal.classList.add('hidden'); }, 300); 
+      }
+
+      showModal(modalId, contentId) {
+        const modal = document.getElementById(modalId), content = document.getElementById(contentId);
+        modal.classList.remove('hidden'); requestAnimationFrame(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-90'); });
+      }
+
+      closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        modal.classList.add('opacity-0'); setTimeout(() => modal.classList.add('hidden'), 300);
+      }
+    }
+
+    class GameController {
+      constructor() {
+        this.sound = new SoundManager();
+        this.data = new DataModel();
+        this.state = new BoardModel();
+        this.view = new GameView();
+        this.pendingAction = null;
+      }
+
+      init() {
+        this.view.bindEvents(this);
+        this.view.initSettingsUI(this.data.customWords.length >= 60);
+        this.resetGame(true);
+      }
+
+      resetGame(generateNewWords = true) {
+        if (this.view.isAnimating) return;
+        if (generateNewWords) this.data.generateWords();
+        this.state.reset();
+        this.view.setSettingsLock(false);
+        this.view.setUILock(false);
+        this.view.initBoardDOM(this.data.currentWords, (r, c) => this.handleCellClick(r, c));
+        this.view.updateBoardState(this.state);
+        this.view.updateUI(this.state);
+        this.view.updateUndoButton(false);
+      }
+
+      async handleCellClick(r, c) {
+        if (this.state.isGameOver || this.view.isAnimating) return;
+        this.sound.init();
+        const flips = this.state.getFlippable(r, c, this.state.currentPlayer);
+        
+        if (flips.length === 0 && (!this.state.showingKanji || this.state.showingKanji.r !== r || this.state.showingKanji.c !== c)) { 
+          this.sound.playError(); return; 
+        }
+        
+        if (this.state.showingKanji && this.state.showingKanji.r === r && this.state.showingKanji.c === c) {
+          this.view.setUILock(true); 
+          this.state.saveState();
+          this.view.updateUndoButton(true);
+          
+          this.state.board[r][c] = this.state.currentPlayer; 
+          this.state.showingKanji = null; 
+          this.view.updateBoardState(this.state, false); 
+          this.sound.playPlace();
+          
+          if (!this.state.isGameStarted) { this.state.isGameStarted = true; this.view.setSettingsLock(true); }
+          await new Promise(res => setTimeout(res, 800));
+          
+          for (let pos of flips) { 
+            this.state.board[pos.r][pos.c] = this.state.currentPlayer; 
+            this.view.updateBoardState(this.state, false); 
+            this.sound.playFlip(); 
+            await new Promise(res => setTimeout(res, 500)); 
+          }
+          await new Promise(res => setTimeout(res, 800));
+          
+          const nextPlayer = this.state.currentPlayer === 1 ? 2 : 1;
+          if (this.state.hasValidMoves(nextPlayer)) {
+            this.state.currentPlayer = nextPlayer; 
+          } else if (this.state.hasValidMoves(this.state.currentPlayer)) {
+            this.sound.playPass();
+            await this.view.showPassModal(); 
+          } else { 
+            this.checkGameOver(true); this.view.setUILock(false); return; 
+          }
+          this.view.setUILock(false); this.view.updateUI(this.state); this.view.updateBoardState(this.state, true); this.checkGameOver(false);
+        } else { 
+          this.state.showingKanji = { r, c }; 
+          this.sound.playTap(); 
+          this.view.updateBoardState(this.state, true); 
+        }
+      }
+
+      checkGameOver(force = false) {
+        const {s1, s2} = this.state.getScores();
+        if (force || s1+s2===64 || (!this.state.hasValidMoves(1) && !this.state.hasValidMoves(2))) {
+          this.state.isGameOver = true; 
+          this.sound.playWin();
+          this.view.showGameOverModal(this.state, this.data.currentWords);
+        }
+      }
+
+      // --- Event Handlers ---
+      handleImportClick() { if (this.state.isGameStarted) return; this.sound.init(); document.getElementById('file-upload').click(); }
+      
+      handleFileChange(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            this.data.parseCSV(event.target.result);
+            document.getElementById('opt-custom').disabled = false;
+            document.getElementById('select-grade').value = 'custom';
+            Toast.show(`成功！ ${this.data.customWords.length}個の問題を読み込みました。`, 'success');
+            this.resetGame(true);
+          } catch(err) { 
+            Toast.show(err.message, 'error'); 
+          }
+        };
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      }
+
+      handleUndo() {
+        if (this.view.isAnimating || !this.state.restoreState()) return;
+        this.sound.playTap();
+        document.getElementById('modal-clear').classList.add('hidden');
+        if (!this.state.isGameStarted) this.view.setSettingsLock(false);
+        this.view.updateUI(this.state); 
+        this.view.updateBoardState(this.state, true); 
+        this.view.updateUndoButton(this.state.historyStack.length > 0);
+      }
+
+      handlePass() {
+        if(this.state.isGameOver || this.view.isAnimating) return; 
+        this.sound.playPass(); 
+        this.state.saveState();
+        this.view.updateUndoButton(true);
+        if (this.state.showingKanji) { 
+          const word = this.data.currentWords[this.state.showingKanji.r * 8 + this.state.showingKanji.c]; 
+          if (word && word.text) this.state.passedHistory.add(word); 
+        }
+        if (!this.state.isGameStarted) { this.state.isGameStarted = true; this.view.setSettingsLock(true); }
+        this.state.currentPlayer = this.state.currentPlayer === 1 ? 2 : 1; 
+        this.state.showingKanji = null; 
+        this.view.updateUI(this.state); 
+        this.view.updateBoardState(this.state); 
+        this.checkGameOver(false); 
+      }
+
+      showConfirm(action) {
+        if (this.view.isAnimating) return; 
+        this.sound.playError(); 
+        this.pendingAction = action;
+        this.view.showConfirmModal(action);
+      }
+
+      closeConfirm() { this.sound.playTap(); this.view.closeConfirmModal(); this.pendingAction = null; }
+
+      executeConfirm() {
+        this.sound.playPass(); this.view.closeConfirmModal();
+        if (this.pendingAction === 'reset') this.resetGame(false);
+        else if (this.pendingAction === 'shuffle') this.resetGame(true);
+        this.pendingAction = null;
+      }
+
+      handleRestart() { document.getElementById('modal-clear').classList.add('hidden'); this.resetGame(true); }
+      handleSettingsChange(type, value) {
+        if (type === 'length') this.data.currentLength = value;
+        else if (type === 'grade') this.data.currentGrade = value;
+        this.resetGame(true);
+      }
+    }
+
+    // ==========================================
+    // Bootstrap
+    // ==========================================
+    window.onload = () => {
+      const app = new GameController();
+      app.init();
+    };
+  </script>
+</body>
+</html>
