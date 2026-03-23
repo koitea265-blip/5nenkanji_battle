@@ -342,12 +342,37 @@
           const db = (this.currentGrade === "upTo3" ? DB_UPTO3 : (this.currentGrade === "only4" ? DB_ONLY4 : DB_ONLY5));
           list = (this.currentLength === "1" ? db.len1 : db.len2);
         }
-        const hardCount = Math.min(20, Math.floor(list.length / 4));
-        const normalList = list.slice(0, list.length - hardCount);
-        const hardList = list.slice(list.length - hardCount);
+
+        // 同音異義語（ひらがなの重複）を排除したユニークなリストを作成
+        const uniqueList = [];
+        const seenTexts = new Set();
+        // シャッフルしてから重複排除することで、同じ読みの漢字が偏るのを防ぐ
+        for (const item of shuffleArray([...list])) {
+          if (!seenTexts.has(item.text)) {
+            seenTexts.add(item.text);
+            uniqueList.push(item);
+          }
+        }
+
+        // ユニークなリストの要素数が60に満たない場合の警告・フォールバック
+        if (uniqueList.length < 60) {
+           console.warn("ユニークな問題数が60個未満です。重複を許容して補充します。");
+           // 足りない分は元のリストから補充（重複許容）
+           let i = 0;
+           while(uniqueList.length < 60) {
+              uniqueList.push(list[i % list.length]);
+              i++;
+           }
+        }
+
+        const hardCount = Math.min(20, Math.floor(uniqueList.length / 4));
+        const normalList = uniqueList.slice(0, uniqueList.length - hardCount);
+        const hardList = uniqueList.slice(uniqueList.length - hardCount);
+        
         let normalPool = shuffleArray([...normalList]);
         let hardPool = shuffleArray([...hardList]);
         
+        // 足りない場合はループして補充（重複排除後なので、ここでのループは全体のデータ不足時のみ）
         while (hardPool.length < 4) hardPool = hardPool.concat(shuffleArray([...hardList]));
         while (normalPool.length < 56) normalPool = normalPool.concat(shuffleArray([...normalList]));
         
@@ -550,9 +575,17 @@
             const b = document.createElement('div'); b.className = 'cell-flip-face font-kyokasho cell-flip-back absolute inset-0 bg-emerald-600 flex flex-col items-center justify-center p-1 overflow-hidden rounded-sm';
             if (word && word.text) {
               const t = document.createElement('div'); const charLen = word.text.length;
-              t.style.fontSize = (charLen === 1) ? '48cqw' : (charLen === 2) ? '34cqw' : (charLen === 3) ? '26cqw' : '20cqw';
+              // ひらがなのサイズを少し小さくし、ヒントのスペースを確保
+              t.style.fontSize = (charLen === 1) ? '40cqw' : (charLen === 2) ? '30cqw' : (charLen === 3) ? '22cqw' : '18cqw';
               t.className = 'text-white font-black text-center leading-none drop-shadow-md w-full break-all px-0.5'; t.innerText = word.text; f.appendChild(t);
-              const h = document.createElement('div'); h.className = 'text-yellow-200 font-bold text-[7px] md:text-[10px] text-center leading-tight mt-1 w-full line-clamp-2'; h.innerText = word.hint; f.appendChild(h);
+              
+              const h = document.createElement('div'); 
+              // ヒントも cqw を使って相対的にする、かつ flex-shrink-0 で潰れないように
+              h.className = 'text-yellow-200 font-bold text-center leading-tight mt-0.5 w-full line-clamp-2 shrink-0'; 
+              h.style.fontSize = '12cqw'; 
+              h.innerText = word.hint; 
+              f.appendChild(h);
+              
               const k = document.createElement('div'); k.style.fontSize = (word.kanji.length === 1) ? '50cqw' : '30cqw';
               k.className = 'text-white font-black text-center drop-shadow-lg w-full'; k.innerText = word.kanji; b.appendChild(k);
             }
